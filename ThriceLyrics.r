@@ -19,11 +19,26 @@ library(tidytext)
 
 
 df <- read.csv('thrice.df.csv', header=TRUE, stringsAsFactors = FALSE)
+View(df)
+df[df$ID == 100, "length"]
+df[df$ID == 100, "lengthS"]
+df[df$ID == 7, "length"]
+df[df$ID == 7, "lengthS"]
 
 df <- df %>% mutate(album = factor(album, levels = unique(album))) %>% 
        mutate(length = ms(length)) %>% 
        mutate(lengthS = seconds(length))
+df[df$ID == 100, "length"]
+df[df$ID == 100, "lengthS"]
+df[df$ID == 7, "length"]
+df[df$ID == 7, "lengthS"]
 
+df <- rbind(df, "100" = c())
+df[df$ID == 100, "length"] <- as.period("4M")
+
+
+
+practice[practice$ID == 2 & practice$Time == "hour 1", "score 1"] <- 5
 
 writersAll <- paste(df$writers, collapse=', ') # turn all artists into one list. each separated by commas (?)
 writersAll <- str_replace_all(writersAll, ',,', ',')  # fix any double-commas (?)
@@ -63,6 +78,34 @@ df %>% group_by(year, album) %>%
 
 test.1 <- df %>% group_by(album) %>% 
   mutate(duration = seconds_to_period(sum(lengthS)))
+
+
+df %>% seconds_to_period(sum(lengthS))
+
+seconds_to_period(sum(df$lengthS))
+df %>% summarise(duration = seconds_to_period(sum(lengthS)))
+df %>% group_by(album) %>% summarise(duration = seconds_to_period(sum(lengthS)))
+
+df %>% group_by(album) %>% select(length, lengthS)
+
+df %>% filter(album == "Vheissu") %>% summarise(songnum = n(), duration = seconds_to_period(sum(lengthS)))
+df %>% filter(album == "Identity Crisis") %>% summarise(songnum = n(), duration = seconds_to_period(sum(lengthS)))
+df %>% filter(album == "The Illusion Of Safety") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+df %>% filter(album == "The Artist In The Ambulance") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+df %>% filter(album == "Major Minor") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+df %>% filter(album == "Beggars") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+df %>% filter(album == "To Be Everywhere And To Be Nowhere") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+df %>% filter(album == "The Alchemy Index Fire") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+df %>% filter(album == "The Alchemy Index Water") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+df %>% filter(album == "The Alchemy Index Air") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+df %>% filter(album == "The Alchemy Index Earth") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+
+
+
+
+#
+df %>% distinct(album) %>% select(df$length, df$lengthS)
+ 
 
 
 
