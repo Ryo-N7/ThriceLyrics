@@ -1,11 +1,3 @@
-install.packages("ggrepel")
-install.packages("wordcloud")
-install.packages("gridExtra")
-install.packages("lubridate")
-install.packages("tidytext")
-install.packages("")
-
-
 # Packages:
 library(knitr)
 library(stringr)
@@ -17,7 +9,8 @@ library(tidyverse)
 library(tidytext)
 library(scales)
 library(hrbrthemes)
-
+library(gplots)
+library(RColorBrewer)
 
 df <- read.csv('thrice.df.csv', header=TRUE, stringsAsFactors = FALSE)
 View(df)
@@ -215,6 +208,89 @@ tidy_lyrics %>%
   count(word, sentiment, sort = T) %>% 
   reshape2::acast(word ~ sentiment, value.var = "n", fill = 0) %>% 
   comparison.cloud(colors = c("#af8dc3", "#7fbf7b"))
+
+
+# Distribution of emotion words BOXPLOT:
+
+emotions_lyrics <- wordToken2 %>% 
+  filter(!grepl('[0-9]', word)) %>% 
+  left_join(get_sentiments("nrc"), by = "word") %>% 
+  filter(!(sentiment == "negative" | sentiment == "positive")) %>% 
+  group_by(album, sentiment) %>% 
+  summarize(freq = n()) %>% 
+  mutate(percent = round(freq / sum(freq)*100)) %>% 
+  select(-freq) %>% 
+  ungroup() 
+
+emotion_box <- emotions_lyrics %>% 
+  spread(sentiment, percent, fill = 0) %>% 
+  ungroup()
+
+cols <- colorRampPalette(brewer.pal(7, "Set3"), alpha = T)(8)
+
+boxplot2(emotion_box[ , c(2:9)], col = cols, lty = 1, shrink = 0.8, textcolor = "red", 
+         xlab = "Emotion Terms", ylab = "Emotion words count (as %)", 
+         main = "Distribution of emotion words count in Thrice lyrics across all albums")
+
+
+# Pos.Neg words distribution BOXPLOT:
+posneg_lyrics <- wordToken2 %>% 
+  filter(!grepl('[0-9]', word)) %>% 
+  left_join(get_sentiments("nrc"), by = "word") %>%          # larger diference when use "bing" vs. "nrc" database! MUST RESEARCH DIFFERENCES!!!!!!!!
+  filter((sentiment == "negative" | sentiment == "positive")) %>% 
+  group_by(album, sentiment) %>% 
+  summarize(freq = n()) %>% 
+  mutate(percent = round(freq / sum(freq)*100)) %>% 
+  select(-freq) %>% 
+  ungroup() 
+
+
+posneg_box <- posneg_lyrics %>% 
+  spread(sentiment, percent, fill = 0) %>% 
+  ungroup()
+
+boxplot2(posneg_box[ , c(2:3)], col = cols, lty = 1, shrink = 0.8, textcolor = "red", 
+         xlab = "Positive or Negative", ylab = "PosNeg/Total (as %)", 
+         main = "Distribution of Pos.Neg in Thrice lyrics across all albums")
+
+
+# Sentiments Over TIME (or album in this case):
+ggplot(emotions_lyrics, aes(x = album, y = percent, color = sentiment, group = sentiment)) + 
+  geom_line(size = 1) + 
+  geom_point(size = 3) +
+  xlab("Album") + ylab("Emotion Words Count (as %)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+# Rather messy. no noticeable trends to be found...! ALthough fear has started to creep up after AI:Fire outlier.
+
+# Pos.Neg over TIME (albums):
+ggplot(posneg_lyrics, aes(x = album, y = percent, color = sentiment, group = sentiment)) + 
+  geom_line(size = 1) + 
+  geom_point(size = 3) +
+  xlab("Album") + ylab("Emotion Words Count (as %)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# LOOOOOOOOOOOOOOOOOOOOOOOOOOLLLL 
+
+
+# Avg. emotion words expressed BAR chart + error:
+overall_mean_sd <- emotions_lyrics %>% 
+  group_by(sentiment) %>% 
+  summarise(overall_mean = mean(percent), sd = sd(percent))
+
+ggplot(overall_mean_sd, aes(x = reorder(sentiment, -overall_mean), y=overall_mean)) +
+  geom_bar(stat="identity", fill="darkgreen", alpha=0.7) + 
+  geom_errorbar(aes(ymin=overall_mean-sd, ymax=overall_mean+sd), width=0.2,position=position_dodge(.9)) +
+  xlab("Emotion Terms") +
+  ylab("Emotion words count (%)") +
+  ggtitle("Emotion words expressed in Thrice's lyrics") + 
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  coord_flip( )
+
+
+
+
+
 
 
 
