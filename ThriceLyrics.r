@@ -16,7 +16,7 @@ library(gridExtra)
 library(tidyverse)
 library(tidytext)
 library(scales)
-
+library(hrbrthemes)
 
 
 df <- read.csv('thrice.df.csv', header=TRUE, stringsAsFactors = FALSE)
@@ -152,6 +152,75 @@ countWord2 <- count(wordToken2, word, sort=TRUE)
 countWord2 <- head(countWord2, 100)
 
 
+# Sentiment analysis:
+
+tidy_lyrics <- wordToken2 %>% 
+  filter(!grepl('[0-9]', word)) %>% 
+  left_join(get_sentiments("bing"), by = "word") %>% 
+  group_by(album) %>%    # will show up in ALL subsequent so take note. use ungroup()
+  mutate(linenumber = row_number(),
+         sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>% 
+  ungroup()
+  
+# Net sentiment ratio by album across time.
+lyrics_sentiment <-  tidy_lyrics %>% 
+  count(sentiment) %>% 
+  spread(key = sentiment, value = n) %>% 
+  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% 
+  select(album, year, sentiment_ratio)
+
+lyrics_sentiment %>% ggplot(aes(x = album, y = sentiment_ratio)) + 
+  geom_bar(aes(fill = sentiment_ratio < 0), stat = 'identity') +
+  geom_text(aes(label = album, hjust = ifelse(sentiment_ratio >= 0, -0.15, 1.15)), vjust = 0.5) +
+  scale_fill_manual(guide = FALSE, values = c('#565b63', '#c40909')) +
+  scale_y_percent(limits = c(-0.25, 0.05)) +
+  coord_flip() +
+  theme_ipsum(grid = "X") +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+# needs some work........    why negative? look at HOW negative is defined.
+# negative talk but with positive action with negative undertones???? 
+
+
+
+# Most common pos.neg words in THrice lyrics!
+word_count <- tidy_lyrics %>% 
+  count(word, sentiment, sort = T) %>% 
+  ungroup()
+
+top_sentiments <-  word_count %>% 
+  filter(sentiment != 'neutral') %>% 
+  group_by(sentiment) %>% 
+  top_n(6, wt = n) %>% 
+  mutate(num = ifelse(sentiment == "negative", -n, n)) %>% 
+  mutate(word = reorder(word, num)) %>% 
+  select(word, sentiment, num)
+
+
+ggplot(top_sentiments, aes(x = word, y = num, fill = sentiment)) +
+  geom_bar(stat = 'identity') + 
+  scale_fill_manual(guide = F, values = c("#af8dc3", "#7fbf7b")) +
+  scale_y_continuous(limits = c(-40, 70), breaks = c(-40, -25, -10, 0, 10, 25, 40, 55, 70)) +
+  labs(y = "Number of Occurrences",
+       x = '',
+       title = 'Lyrics Sentiment of Thrice',
+       subtitle = 'Most Common Positive and Negative Words') +
+  theme_ipsum(grid = "Y") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# Word cloud:
+tidy_lyrics %>% 
+  filter(sentiment != 'neutral') %>% 
+  count(word, sentiment, sort = T) %>% 
+  reshape2::acast(word ~ sentiment, value.var = "n", fill = 0) %>% 
+  comparison.cloud(colors = c("#af8dc3", "#7fbf7b"))
+
+
+
+
+
+# Uni-bi-trigrams
 ?paste()
 nGram <- data_frame(text = paste(wordToken$word, collapse = ' '))
 nGramCleaned <- data_frame(text=paste(wordToken2$word, collapse = ' '))
