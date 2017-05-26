@@ -169,15 +169,71 @@ df %>% group_by(title) %>%
 
 # words per song?
 
-
+lTest <- df %>%
+  unnest_tokens(line, lyrics)
 ###
 ###
 ###
 ###
 ###
 
+df %>% aggregate(lyrics, by = list(title), FUN = sum)
+
+df %>% tokenize(lyrics)
+tokenize(df$lyrics)
+aggregate(df$lyrics, by = list(df$title), FUN = sum)
+
+TEST <- df %>%
+  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
+  unnest_tokens(word, line) %>%
+  anti_join(stop_words) %>%
+  select(-length, -lengthS) %>% 
+  group_by(title)
+
+WordsPerSong <- df %>%
+  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
+  unnest_tokens(word, line) %>%           # include stop words (they are still words in the lyrics for the total count)
+  group_by(title) %>% 
+  summarize(wordcounts = n()) %>%    # # of rows per group(title)  ????
+  arrange(desc(wordcounts))
+
+  
+# i actuall yfucking solved it and i dont know how.
+asdf <- TEST %>% group_by(title) %>% 
+  summarize(wordcounts = n()) %>%    # # of rows per group(title)  ????
+  arrange(desc(wordcounts))
 
 
+df %>% filter(title == "As The Crow Flies")
+
+
+
+
+TEST %>% group_by(title) %>% 
+  count(word)
+
+TEST %>% group_by(title) %>% 
+  summarize(lyri = n(word))
+
+TEST %>% group_by(title) %>% 
+  summarize(lets = sum(word))
+
+df %>% length(lyrics)
+length()
+
+TEST %>% (title) %>% 
+  count(title, word)
+
+aggregate(TEST$word, by = list(TEST$title), "count")
+aggregate(TEST[, "word"], by = list(TEST$title), "count")
+
+
+
+paste(TEST$lyrics)
+
+lTest %>% n_distinct(line)
 
 
 # Sentiment analysis:
