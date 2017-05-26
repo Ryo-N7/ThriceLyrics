@@ -125,7 +125,8 @@ lineToken
 
 wordToken <-  lineToken %>% 
   unnest_tokens(word, line) %>% 
-  mutate(wordCount = row_number())
+  mutate(wordCount = row_number()) %>% 
+  select(-numLines, -numWord)
 wordToken # uncleaned unigrams containing all 'stop words' such as 'I', 'you', 'we', 'very', etc. etc.
 
 
@@ -143,6 +144,40 @@ wordToken2 <- wordToken %>%
 
 countWord2 <- count(wordToken2, word, sort=TRUE)
 countWord2 <- head(countWord2, 100)
+
+#################################################################################
+aggregate(wordToken2$numWord, by = list(wordToken2$album), FUN = sum) %>% 
+  arrange(-x)
+### right syntax but numword is WRONG, each numword has own row with # words for entire album!
+# all rows spread by singular WORD, need to spread each row by SONG, calculate numWord for each, aggregate for each album???
+
+
+###    CHECKING DATASET WITH SIMPLE DPLYR VERBS!   ####
+aggregate(df$numWord, by = list(df$album), FUN = sum) %>% 
+  arrange(desc(x))   # instrumentals still count the blank as 1, but insignificant.
+df %>% aggregate(numWord, by = album, FUN = sum)
+
+df %>% summarise(count = n()) # 103 songs in total
+
+df %>% group_by(album) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) # songs per album (by order of # of songs desc)
+
+df %>% group_by(title) %>%
+  select(title, numLines, album) %>% 
+  arrange(desc(numLines))    # songs with most # of lines
+
+# words per song?
+
+
+###
+###
+###
+###
+###
+
+
+
 
 
 # Sentiment analysis:
@@ -177,6 +212,7 @@ lyrics_sentiment %>% ggplot(aes(x = album, y = sentiment_ratio)) +
 
 
 # Most common pos.neg words in THrice lyrics!
+
 word_count <- tidy_lyrics %>% 
   count(word, sentiment, sort = T) %>% 
   ungroup()
@@ -210,6 +246,8 @@ tidy_lyrics %>%
   comparison.cloud(colors = c("#af8dc3", "#7fbf7b"))
 
 
+
+
 # Distribution of emotion words BOXPLOT:
 
 emotions_lyrics <- wordToken2 %>% 
@@ -232,12 +270,38 @@ boxplot2(emotion_box[ , c(2:9)], col = cols, lty = 1, shrink = 0.8, textcolor = 
          xlab = "Emotion Terms", ylab = "Emotion words count (as %)", 
          main = "Distribution of emotion words count in Thrice lyrics across all albums")
 
+# with bing
+
+emotions_lyrics <- wordToken2 %>% 
+  filter(!grepl('[0-9]', word)) %>% 
+  left_join(get_sentiments("bing"), by = "word") %>% 
+  mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   # if use "bing", need to add in 'neutral' for all NOT pos/neg
+  group_by(album, sentiment) %>% 
+  summarize(freq = n()) %>% 
+  mutate(percent = round(freq / sum(freq)*100)) %>% 
+  select(-freq) %>% 
+  ungroup() 
+
+# filter(!(sentiment == "negative" | sentiment == "positive")) %>%   
+# for nrc use ^
+  
+emotion_box <- emotions_lyrics %>% 
+  spread(sentiment, percent, fill = 0) %>% 
+  ungroup()
+
+cols <- colorRampPalette(brewer.pal(7, "Set3"), alpha = T)(8)
+
+boxplot2(emotion_box[ , c(2:4)], col = cols, lty = 1, shrink = 0.8, textcolor = "red", 
+         xlab = "Emotion Terms", ylab = "Emotion words count (as %)", 
+         main = "Distribution of emotion words count in Thrice lyrics across all albums")
+
+
 
 # Pos.Neg words distribution BOXPLOT:
 posneg_lyrics <- wordToken2 %>% 
   filter(!grepl('[0-9]', word)) %>% 
-  left_join(get_sentiments("nrc"), by = "word") %>%          # larger diference when use "bing" vs. "nrc" database! MUST RESEARCH DIFFERENCES!!!!!!!!
-  filter((sentiment == "negative" | sentiment == "positive")) %>% 
+  left_join(get_sentiments("bing"), by = "word") %>%          # larger diference when use "bing" vs. "nrc" database! MUST RESEARCH DIFFERENCES!!!!!!!!
+  filter((sentiment == "negative" | sentiment == "positive")) %>%    # still filter non-POS/NEG for both
   group_by(album, sentiment) %>% 
   summarize(freq = n()) %>% 
   mutate(percent = round(freq / sum(freq)*100)) %>% 
@@ -252,9 +316,27 @@ posneg_box <- posneg_lyrics %>%
 boxplot2(posneg_box[ , c(2:3)], col = cols, lty = 1, shrink = 0.8, textcolor = "red", 
          xlab = "Positive or Negative", ylab = "PosNeg/Total (as %)", 
          main = "Distribution of Pos.Neg in Thrice lyrics across all albums")
+# bing: categorize binary ONLY POS/NEG
+# nrc: categorize ^num of categories POS/NEG/anger/anticipation/disgust/fear/joy/surprise/sadness/trust
+
+
+
 
 
 # Sentiments Over TIME (or album in this case):
+emotions_lyrics <- wordToken2 %>% 
+  filter(!grepl('[0-9]', word)) %>% 
+  left_join(get_sentiments("bing"), by = "word") %>% 
+  mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   # if use "bing", need to add in 'neutral' for all NOT pos/neg
+  filter((sentiment == "negative" | sentiment == "positive")) %>%     # filter neutral out comes it screws up the graph lol
+  group_by(album, sentiment) %>% 
+  summarize(freq = n()) %>% 
+  mutate(percent = round(freq / sum(freq)*100)) %>% 
+  select(-freq) %>% 
+  ungroup() 
+
+
+# with all the sentiments = use nrc, not ^ code
 ggplot(emotions_lyrics, aes(x = album, y = percent, color = sentiment, group = sentiment)) + 
   geom_line(size = 1) + 
   geom_point(size = 3) +
@@ -262,6 +344,16 @@ ggplot(emotions_lyrics, aes(x = album, y = percent, color = sentiment, group = s
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
   
 # Rather messy. no noticeable trends to be found...! ALthough fear has started to creep up after AI:Fire outlier.
+
+# AI: Fire seems to have untrendly amount of FEAR: let's take a closer look!
+nrcfear <- get_sentiments("nrc") %>% 
+  filter(sentiment == "fear")
+
+wordToken2 %>% 
+  filter(album == "The Alchemy Index Fire") %>% 
+  inner_join(nrcfear) %>% 
+  count(word, sort = TRUE)
+
 
 # Pos.Neg over TIME (albums):
 ggplot(posneg_lyrics, aes(x = album, y = percent, color = sentiment, group = sentiment)) + 
