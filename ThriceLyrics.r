@@ -209,7 +209,7 @@ asdf <- TEST %>% group_by(title) %>%
 df %>% filter(title == "As The Crow Flies")
 
 
-
+wordToken2 %>% bind_tf_idf(word, album , n)
 
 TEST %>% group_by(title) %>% 
   count(word)
@@ -450,18 +450,62 @@ nGram <- data_frame(text = paste(wordToken$word, collapse = ' '))
 nGramCleaned <- data_frame(text=paste(wordToken2$word, collapse = ' '))
 
 biGrams <-  nGram %>% 
-  unnest_tokens(ngram, text, token = "ngrams", n = 2) %>%
-  count(ngram, sort = TRUE)
+  unnest_tokens(ngram, text, token = "ngrams", n = 2) 
 
 biGramsCleaned <-  nGramCleaned %>% 
   unnest_tokens(ngram, text, token = "ngrams", n = 2) %>%
   count(ngram, sort = TRUE)
 
 triGrams <-  nGram %>% 
-  unnest_tokens(ngram, text, token = "ngrams", n = 3) %>%
+  unnest_tokens(ngram, text, token = "ngrams", n = 3) 
+
+
+biGramsCleaned %>%
   count(ngram, sort = TRUE)
 
+biGramsSep <- biGramsCleaned %>% 
+  separate(ngram, c("word1", "word2", sep = " "))
 
+
+triGrams %>% 
+  separate(ngram, c("word1", "word2", "word3"), sep = " ") %>% 
+  count(word1, word2, word3, sort = T)
+
+triGrams %>% 
+  separate(ngram, c("word1", "word2", "word3"), sep = " ") %>% 
+  filter(!word1 %in% stop_words$word,
+         !word2 %in% stop_words$word,
+         !word3 %in% stop_words$word) %>% 
+  count(word1, word2, word3, sort = T)
+
+?top_n
+
+AFINN <- get_sentiments("afinn")
+
+love_words <- biGramsSep %>% 
+  filter(word1 == "love") %>% 
+  inner_join(AFINN, by = c(word2 = "word")) %>%
+  count(word2, score, sort = TRUE) %>%
+  ungroup()
+
+love_words %>% 
+  mutate(contribution = nn * score) %>% 
+  arrange(desc(abs(contribution))) %>% 
+  head(20) %>% 
+  mutate(word2 = reorder(word2, contribution)) %>% 
+  ggplot(aes(word2, nn * score, fill = nn *score > 0)) + 
+  geom_col(show.legend = F) +
+  coord_flip()
+
+# love betrays, love ... die, love ... evil, love ... chance, love .../ true, love ... loyalty
+
+negation_words <- c("not", "no", "never", "without")
+
+negated_words <- biGramsSep %>%
+  filter(word1 %in% negation_words) %>%
+  inner_join(AFINN, by = c(word2 = "word")) %>%
+  count(word1, word2, score, sort = TRUE) %>%
+  ungroup()
 
 medianWord <- median(df$numWord)
 
