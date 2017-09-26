@@ -11,42 +11,53 @@ library(scales)
 library(hrbrthemes)
 library(gplots)
 library(RColorBrewer)
+library(broom)
+library(ggplot2)
+
+
+# load dataset ------------------------------------------------------------
 
 df <- read.csv('thrice.df.csv', header=TRUE, stringsAsFactors = FALSE)
-View(df)
-df[df$ID == 100, "length"]
-df[df$ID == 100, "lengthS"]
-df[df$ID == 7, "length"]
-df[df$ID == 7, "lengthS"]
 
-df <- df %>% mutate(album = factor(album, levels = unique(album))) %>% 
-       mutate(length = ms(length)) %>% 
-       mutate(lengthS = seconds(length))
+glimpse(df)
+# song ID, year, track num = integer
+# all else chr
 
-df[df$ID == 100, "length"]
-df[df$ID == 100, "lengthS"]
-df[df$ID == 7, "length"]
-df[df$ID == 7, "lengthS"]
+# use lubridate pkg to tranform length and lengthS
+# turn album var into a factor variable for each unique album!
+?ms()  # transforms chr/num vector into period object
+?seconds()  # create period object in seconds
 
-# df <- rbind(df, "100" = c())
-# df[df$ID == 100, "length"] <- as.period("4M")
-# practice[practice$ID == 2 & practice$Time == "hour 1", "score 1"] <- 5
+df <- df %>% 
+       mutate(album = factor(album, levels = unique(album)),
+              length = ms(length),
+              lengthS = seconds(length))
 
-writersAll <- paste(df$writers, collapse=', ') # turn all artists into one list. each separated by commas (?)
-writersAll <- str_replace_all(writersAll, ',,', ',')  # fix any double-commas (?)
-writersAll
+glimpse(df)
+# both length and lengthS are now Period/S4 variables!
+# album is a factor!
+
+
+# Song writers for Thrice  ------------------------------------------------
+
+writersAll <- paste(df$writers, collapse=', ')        # turn all artists into one list. each separated by commas (collapse = ', ')
+writersAll <- str_replace_all(writersAll, ',,', ',')  # fix any double-commas typos
+glimpse(writersAll)  # still one gigantic chr list
+
 writersAll <- unlist(strsplit(writersAll, ', ')) # unlist writers. separated by the commas. (?), each appear "individually".
+glimpse(writersAll)   # now a character vector of length 104!
 
-writersList
-writersList <- sort(unique(writersAll))
 
+writersList <- sort(unique(writersAll))     # List of all UNIQUE writers.
+writersList    # Dustin, Eddie, Ian Stift, Riley     (99% DUstin tho)
+
+library(stringr)
 writersListLabel <- str_replace_all(writersList, ' ', '_') # label of writers, replace " " with "_" for calling purposes
-writersListLabel
-
-?str_detect()
+writersListLabel   # now Dustin_Kensrue, Ian_Stift   etc.
 
 
 dfWriters <- df # copy df into new dfWriters dataframe
+
 for(i in 1:length(writersList)){
   dfWriters[,writersListLabel[i]] <- str_detect(dfWriters$writers, writersList[i]) # detect per each row (song) which writer in WriterList appears T/F
 }
@@ -57,22 +68,48 @@ writers <-  data.frame(writer = writersList,           # name of writer from wri
                        nSongs = apply(buffer, 2, sum), # number of songs written by writer from writerlist
                        row.names = NULL,
                        stringsAsFactors = F) 
+
+writers   # Dustin: 101, Eddie: 1, Ian Stift: 1, Riley: 1
+
 writers <- writers %>%
   arrange(desc(nSongs))     # not much to see here as 99.999% of Thrice songs written by Dustin...LOL.
 
-?kable()
+writers
+
+
+###############################
 
 length(unique(df$album))  # How many total albums have Thrice released?? (Counting each element from AlchemyIndex...)
 
-df %>% group_by(year, album) %>% 
+df %>% select(album) %>% unique()  # list of all Thrice albums (so far...!)
+
+df %>% select(album) %>% n_distinct()  # number of Thrice albums (so far..!)
+
+df %>% 
+  group_by(album, year) %>% 
   summarise(SongNum = n(),
-            duration = seconds_to_period(sum(lengthS)))
+            duration = seconds_to_period(sum(lengthS)))   # only shows correct total duration for Identity Crisis...????
+
+df %>% 
+  group_by(album) %>% 
+  summarise(duration = seconds_to_period(sum(lengthS)))
+
+albums <- df %>% 
+  group_by(year, album) %>% 
+  summarise(nbreSongs=n(), duration=seconds_to_period(sum(lengthS)))
+
+df %>% 
+  group_by(year, album) %>% 
+  summarise(SongNum = n(),
+            durationInMinutes = sum(lengthS)/60)    # lengthS in seconds / 60 to get in minutes!
+
+# works if NOT use seconds_to_period() ....
+?seconds_to_period
+
 
 test.1 <- df %>% group_by(album) %>% 
   mutate(duration = seconds_to_period(sum(lengthS)))
 test.1 %>% print(nrow = n(.))
-
-df %>% seconds_to_period(sum(lengthS))
 
 seconds_to_period(sum(df$lengthS))
 df %>% summarise(duration = seconds_to_period(sum(lengthS)))
@@ -80,20 +117,48 @@ df %>% group_by(album) %>% summarise(duration = seconds_to_period(sum(lengthS)))
 
 df %>% group_by(album) %>% select(length, lengthS)
 
-df %>% filter(album == "Vheissu") %>% summarise(songnum = n(), duration = seconds_to_period(sum(lengthS)))
-df %>% filter(album == "Identity Crisis") %>% summarise(songnum = n(), duration = seconds_to_period(sum(lengthS)))
-df %>% filter(album == "The Illusion Of Safety") %>% summarise(duration = seconds_to_period(sum(lengthS)))
-df %>% filter(album == "The Artist In The Ambulance") %>% summarise(duration = seconds_to_period(sum(lengthS)))
-df %>% filter(album == "Major Minor") %>% summarise(duration = seconds_to_period(sum(lengthS)))
-df %>% filter(album == "Beggars") %>% summarise(duration = seconds_to_period(sum(lengthS)))
-df %>% filter(album == "To Be Everywhere And To Be Nowhere") %>% summarise(duration = seconds_to_period(sum(lengthS)))
-df %>% filter(album == "The Alchemy Index Fire") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+df %>% 
+  filter(album == "Vheissu") %>% 
+  summarise(songnum = n(), 
+            duration = seconds_to_period(sum(lengthS)))
+
+df %>% 
+  filter(album == "Identity Crisis") %>% 
+  summarise(songnum = n(), 
+            duration = seconds_to_period(sum(lengthS)))
+
+df %>% 
+  filter(album == "The Illusion Of Safety") %>% 
+  summarise(duration = seconds_to_period(sum(lengthS)))
+
+df %>% 
+  filter(album == "The Artist In The Ambulance") %>% 
+  summarise(duration = seconds_to_period(sum(lengthS)))
+
+df %>% 
+  filter(album == "Major Minor") %>% 
+  summarise(duration = seconds_to_period(sum(lengthS)))
+
+df %>% 
+  filter(album == "Beggars") %>% 
+  summarise(duration = seconds_to_period(sum(lengthS)))
+
+df %>% 
+  filter(album == "To Be Everywhere And To Be Nowhere") %>% 
+  summarise(duration = seconds_to_period(sum(lengthS)))
+
+df %>% 
+  filter(album == "The Alchemy Index Fire") %>% 
+  summarise(duration = seconds_to_period(sum(lengthS)))
+
 df %>% filter(album == "The Alchemy Index Water") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+
 df %>% filter(album == "The Alchemy Index Air") %>% summarise(duration = seconds_to_period(sum(lengthS)))
+
 df %>% filter(album == "The Alchemy Index Earth") %>% summarise(duration = seconds_to_period(sum(lengthS)))
 
 # INDIVIDUAL ALBUMS SHOW DURATION BUT NOT WHEN AS WHOLE WHYYYYYYYYYYYYYYYYYYY
-
+# (Fixed 7/25/17 by just using different formula... just avoid seconds_to_period() function???)
 
 df %>% ggplot(aes(x = as.numeric(lengthS))) + 
        geom_histogram(binwidth = 10, 
@@ -104,19 +169,79 @@ df %>% ggplot(aes(x = as.numeric(lengthS))) +
        ylab('# of Songs') +
        labs(title = 'Distr. of Songs by Length')
 
-as.numeric(df$lengthS)
+# by minutes along x-axis
+df %>% ggplot(aes(x = as.numeric(lengthS)/60)) + 
+  geom_histogram(binwidth = 0.5, 
+                 color = 'white',
+                 fill = 'darkgreen') +
+  scale_y_continuous(breaks = pretty_breaks(10), expand = c(0,0), limits = c(0, 30)) +
+  scale_x_continuous(breaks = pretty_breaks(10)) +
+  xlab('Minutes') +
+  ylab('# of Songs') +
+  labs(title = 'Distr. of Songs by Length')
 
+# histogram of joy plot
+scale_x_reordered <- function(..., sep = "___") {    # from David Robinson's github.
+  reg <- paste0(sep, ".+$")
+  ggplot2::scale_x_discrete(labels = function(x) gsub(reg, "", x), ...)
+}
+
+hist <- df %>% 
+  arrange(desc(as.numeric(lengthS)/60)) %>%
+  ggplot(aes(x = as.numeric(lengthS)/60)) + 
+  geom_histogram(binwidth = 0.5, 
+                 color = 'white',
+                 fill = 'darkgreen') +
+  scale_y_continuous(breaks = pretty_breaks(10)) +
+  scale_x_continuous(breaks = pretty_breaks(10)) +
+  xlab('Minutes') +
+  ylab('# of Songs') +
+  labs(title = 'Distr. of Songs by Length') +
+  facet_grid(album ~ ., scale = "free_x") +
+  scale_x_reordered()
+
+hist
+
+# Joy Plots ---------------------------------------------------------------
+
+# JoyPlot
+library(ggjoy)
+?arrange()
+
+joyplot <- df %>% 
+  ggplot(aes(x = as.numeric(lengthS)/60, y = album)) +
+  geom_joy() +
+  xlab('Minutes') +
+  scale_x_continuous(breaks = pretty_breaks(10))
+joyplot
+
+df %>% mutate(group = reorder(album, lengthS)) %>%     # reorder based on lengthS
+  ggplot(aes(x = as.numeric(lengthS)/60, y = group)) +
+  geom_joy() +
+  xlab('Minutes') +
+  scale_x_continuous(breaks = pretty_breaks(10))
+# vertical line for each lengthS by album?
+
+library(grid)
+pushViewport(viewport(layout = grid.layout(1,2)))
+print(joyplot, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+print(hist, vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
+gridExtra::grid.arrange()
+
+
+str(writers)   # writer = chr
 writers %>%
   mutate(writer = as.factor(writer)) %>%
   mutate(writer = reorder(writer, nSongs)) %>%
-  top_n(10)
+  top_n(10)           # ... i mean it's mainly just Dustin writing the songs...
 
-## Lyrics analyses:
+
+# Lyrics analysis ---------------------------------------------------------
 
 df <- df %>%
-  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
-  mutate(numLines = str_count(lyrics, '<br>') + 1) %>%
-  mutate(numWord = str_count(lyrics, ' ') + 1)
+  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%   # replace apostrophes in lyrics with blank
+  mutate(numLines = str_count(lyrics, '<br>') + 1) %>%      # num of lines per song
+  mutate(numWord = str_count(lyrics, ' ') + 1)              # num of words per song
 
 lineToken <- df %>%
   unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
@@ -134,6 +259,8 @@ countWord <- count(wordToken, word, sort=TRUE)
 countWord <- head(countWord, 100)
 empty <- data.frame(a=character(100),b=rep('|',100),c=character(100),
                     stringsAsFactors = FALSE)
+# 'the' is most common....
+
 
 data("stop_words")     # data base of 'stop words' to clean unigrams.
 stop_words %>% print(n = 1149)
@@ -144,6 +271,10 @@ wordToken2 <- wordToken %>%
 
 countWord2 <- count(wordToken2, word, sort=TRUE)
 countWord2 <- head(countWord2, 100)
+# with no stop words, 'eyes', ''ll', ''ve', and 'love', 'light' are most common
+# interesting in -light- of the fact that sentiment-score wise Thrice songs are overtly negative...
+
+
 
 #################################################################################
 aggregate(wordToken2$numWord, by = list(wordToken2$album), FUN = sum) %>% 
@@ -153,11 +284,15 @@ aggregate(wordToken2$numWord, by = list(wordToken2$album), FUN = sum) %>%
 
 
 ###    CHECKING DATASET WITH SIMPLE DPLYR VERBS!   ####
-aggregate(df$numWord, by = list(df$album), FUN = sum) %>% 
-  arrange(desc(x))   # instrumentals still count the blank as 1, but insignificant.
-df %>% aggregate(numWord, by = album, FUN = sum)
 
-df %>% summarise(count = n()) # 103 songs in total
+
+
+df %>% aggregate(.$numWord, by = list(albumList), FUN = count)   # by - must be list...   sum NOT meaningful for factors...
+albumList <- as.vector(df$album)
+count(df$numWord)
+
+
+df %>% summarise(Num.Songs = n()) # 103 songs in total
 
 df %>% group_by(album) %>% 
   summarise(count = n()) %>% 
@@ -168,9 +303,20 @@ df %>% group_by(title) %>%
   arrange(desc(numLines))    # songs with most # of lines
 
 # words per song?
+df %>% group_by(title) %>% 
+  select(title, numWord, album) %>% 
+  arrange(desc(numWord))    # The Weight has the most words (all incl. stop words)... also includes <br> though...
 
-lTest <- df %>%
-  unnest_tokens(line, lyrics)
+aggregate(df$numWord, by = list(df$album), FUN = sum) %>% 
+  arrange(desc(x))   # instrumentals still count the blank as 1, but insignificant.
+# numWord by album
+
+df %>% filter(album == "Vheissu") %>% select(numWord) %>% sum()
+
+aggregate(df$numWord, by = list(df$album), FUN = sum, na.rm = F)
+
+wordToken$word[wordToken$word == "light"]
+
 ###
 ###
 ###
@@ -199,12 +345,34 @@ WordsPerSong <- df %>%
   summarize(wordcounts = n()) %>%    # # of rows per group(title)  ????
   arrange(desc(wordcounts))
 
+WordsPerSong1111 <- df %>%
+  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
+  unnest_tokens(word, line) %>%           # include stop words (they are still words in the lyrics for the total count)
+  group_by(title)
+
+LinesPerSong <- df %>%
+  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
+  group_by(title) %>% 
+  summarise(linecounts = n()) %>% 
+  arrange(desc(linecounts))
+
+PerSong <- full_join(WordsPerSong, LinesPerSong, by = "title")
+
+sum(str_count(df$lyrics, "<br>"))
+sum(str_count(df$lyrics, "light"))
   
 # i actuall yfucking solved it and i dont know how.
 asdf <- TEST %>% group_by(title) %>% 
   summarize(wordcounts = n()) %>%    # # of rows per group(title)  ????
   arrange(desc(wordcounts))
 
+# Histogram of Word counts (per Song)
+WordsPerSong %>% ggplot(aes(x = wordcounts)) + geom_histogram(binwidth = 10) +
+  geom_vline(xintercept = mean(WordsPerSong$wordcounts), color = "red") +
+  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
+  scale_y_continuous(breaks = pretty_breaks(n = 10))
 
 df %>% filter(title == "As The Crow Flies")
 
@@ -264,7 +432,7 @@ lyrics_sentiment %>% ggplot(aes(x = album, y = sentiment_ratio)) +
         axis.ticks.y = element_blank())
 # needs some work........    why negative? look at HOW negative is defined.
 # negative talk but with positive action with negative undertones???? 
-
+# order DESC instead...???
 
 
 # Most common pos.neg words in THrice lyrics!
