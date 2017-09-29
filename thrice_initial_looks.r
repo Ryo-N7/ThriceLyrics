@@ -55,14 +55,17 @@ glimpse(df)
 length(unique(df$album))  # How many total albums have Thrice released?? (Counting each element from AlchemyIndex...)
 df %>% select(album) %>% n_distinct()  # number of Thrice albums (so far..!)
 
-df %>% select(album) %>% unique()  # list of all Thrice albums (so far...!)
-
+df %>% select(album, year) %>% unique()  # list of all Thrice albums (so far...!)
 
 albums_lengths <- df %>% 
   group_by(album, year) %>% 
   summarise(SongNum = n(),
-            duration = as.duration(seconds_to_period(sum(lengthS))))   # this isnt even correct...??
+            duration = as.duration(seconds_to_period(sum(lengthS))))  
+
 str(albums_lengths)
+
+albums_lengths %>% 
+  arrange(desc(duration))
 
 
 df %>% 
@@ -71,6 +74,12 @@ df %>%
             durationInMinutes = sum(lengthS)/60) %>%    # lengthS in seconds / 60 to get in minutes!
   arrange(desc(durationInMinutes))
 
+# song lengths
+song_lengths <- df %>% 
+  group_by(title, album) %>% 
+  summarise(duration = as.duration(sum(lengthS)))
+
+song_lengths %>% arrange(desc(duration))
   
 # works if NOT use seconds_to_period(), but minutes still in base-10... not very elegant but w/e
 # Major/Minor and Vheissu are longest albums both totalling up to a bit over 49 mins!
@@ -79,21 +88,21 @@ df %>%
   filter(grepl("Index", album)) %>% 
   summarise(duration_minutes = sum(lengthS)/60)
 # or use stringr pkg's str_detect()
-
 df %>% 
   filter(str_detect(album, "Index")) %>% 
   summarise(duration_minutes = seconds_to_period(sum(lengthS)))
 
 df %>% 
   filter(album == "Vheissu") %>% 
-  summarise(duration_minutes = seconds_to_period(sum(lengthS)))
+  summarise(duration_minutes = as.duration(sum(lengthS)))
 
 df %>% 
   group_by(album) %>% 
-  summarise(duration_in_mins = sum(length))
-str(df, max.level = 2)
+  summarise(duration_minutes = as.duration(sum(lengthS)))
 
-
+df %>% 
+  group_by(title) %>% 
+  summarise(duration_song = as.duration(sum(lengthS)))
 
 
 # Plotting! ---------------------------------------------------------------
@@ -102,8 +111,10 @@ df %>% ggplot(aes(x = as.numeric(lengthS))) +
   geom_histogram(binwidth = 10, 
                  color = 'white',
                  fill = 'darkgreen') +
-  scale_y_continuous(breaks = pretty_breaks(), expand = c(0, 0), limits = c(0, 13)) +
-  scale_x_continuous(breaks = pretty_breaks(10), expand = c(0, 0), limits = c(0, 420)) +
+  scale_y_continuous(breaks = pretty_breaks(), 
+                      limits = c(0, 13), expand = c(0, 0)) +   # expand 0,0 to reduce space
+  scale_x_continuous(breaks = pretty_breaks(10), 
+                     limits = c(0, 420), expand = c(0, 0)) +  # set limits manually
   xlab('Seconds') +
   ylab('# of Songs') +
   labs(title = 'Distr. of Songs by Length') +
@@ -115,7 +126,8 @@ df %>% ggplot(aes(x = as.numeric(lengthS)/60)) +
   geom_histogram(binwidth = 0.5, 
                  color = 'white',
                  fill = 'darkgreen') +
-  scale_y_continuous(breaks = pretty_breaks(10), expand = c(0,0), limits = c(0, 30)) +
+  scale_y_continuous(breaks = pretty_breaks(10), 
+                     expand = c(0,0), limits = c(0, 30)) +
   scale_x_continuous(breaks = pretty_breaks(5)) +
   xlab('Minutes') +
   ylab('# of Songs') +
@@ -125,10 +137,11 @@ df %>% ggplot(aes(x = as.numeric(lengthS)/60)) +
         axis.title = element_text(size = 14))
 
 # facet by album? facet_wrap() vs facet_grid()
-df %>% ggplot(aes(x = as.numeric(lengthS)/60)) + 
+histogram <- df %>% 
+  ggplot(aes(x = as.numeric(lengthS)/60)) + 
   geom_histogram(binwidth = 0.5, 
-                 color = 'white',
-                 fill = 'darkgreen') +
+                 color = "#FFFFFF",
+                 fill = "#006400") +
   scale_y_continuous(breaks = pretty_breaks(), expand = c(0, 0), limits = c(0, 7)) +
   scale_x_continuous(breaks = pretty_breaks()) +
   xlab('Minutes') +
@@ -136,30 +149,48 @@ df %>% ggplot(aes(x = as.numeric(lengthS)/60)) +
   labs(title = 'Distr. of Songs by Length') +
   theme_bw() +
   theme(axis.text = element_text(size = 8, color = "#252525"),
-        axis.title = element_text(size = 8)) +
-  facet_wrap(~album)
+        axis.title = element_text(size = 8)) 
 
+histogram
+
+histogram + facet_wrap(~album)
+# hard to interpret
+
+# grid
+histogram + facet_grid(~album)
+# better but hard to understand the differences between albums
+
+# the other way around?
+histogram + facet_grid(album ~.)
+# can compare each of the histograms, but the bars make it hard to discern differences...
+# try adding in trend lines for each?
+
+histogram + facet_grid(album ~.) + 
+  geom_smooth(se = FALSE, stat = "bin", bins = 10, col = "red")
+
+# let's try alternating the colors for each album 
+# also, reorder the albums in order of song lengths
 # histogram of joy plot
-scale_x_reordered <- function(..., sep = "___") {    # from David Robinson's github.
-  reg <- paste0(sep, ".+$")
-  ggplot2::scale_x_discrete(labels = function(x) gsub(reg, "", x), ...)
-}
 
 hist <- df %>% 
-  arrange(desc(as.numeric(lengthS)/60)) %>%
-  ggplot(aes(x = as.numeric(lengthS)/60)) + 
+  mutate(group = reorder(album, lengthS)) %>%
+  arrange(group) %>% 
+  ggplot(aes(x = as.numeric(lengthS)/60, fill = group)) + 
   geom_histogram(binwidth = 0.5, 
-                 color = 'white',
-                 fill = 'darkgreen') +
-  scale_y_continuous(breaks = pretty_breaks(10)) +
-  scale_x_continuous(breaks = pretty_breaks(10)) +
+                 color = "#FFFFFF") +
+  scale_y_continuous(breaks = pretty_breaks()) +
+  scale_x_continuous(breaks = pretty_breaks(5)) +
   xlab('Minutes') +
   ylab('# of Songs') +
   labs(title = 'Distr. of Songs by Length') +
-  facet_grid(album ~ ., scale = "free_x") +
-  scale_x_reordered()
+  facet_grid(group ~.) +
+  scale_fill_manual(values = rep(c("#006400", "#404040"), length(unique(df$album)))) +
+  theme_bw() +
+  theme(legend.position = "none")
 
 hist
+# can somewhat see that Illusion of Safety has the least songs in 
+
 
 # Joy Plots ---------------------------------------------------------------
 
@@ -167,18 +198,44 @@ hist
 library(ggjoy)
 ?arrange()
 
-joyplot <- df %>% 
+df %>% 
   ggplot(aes(x = as.numeric(lengthS)/60, y = album)) +
   geom_joy() +
   xlab('Minutes') +
-  scale_x_continuous(breaks = pretty_breaks(10))
-joyplot
+  scale_x_continuous(breaks = pretty_breaks(7))
 
-df %>% mutate(group = reorder(album, lengthS)) %>%     # reorder based on lengthS
-  ggplot(aes(x = as.numeric(lengthS)/60, y = group)) +
+# attempt 1
+df %>% 
+  mutate(group = reorder(album, desc(lengthS))) %>%     # reorder based on lengthS
+  ggplot(aes(x = as.numeric(lengthS), y = group, fill = album)) +  # fill on group as they are ordered instead of just album! worked! :D
+  geom_joy(scale = 2) +     # scale to set overlap between ridges
+  xlab('Seconds') +
+  scale_x_continuous(breaks = pretty_breaks(5)) +
+  scale_fill_manual(values = rep(c("#006400", "#404040"), length(unique(df$album)))) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+# attempt 2 and success!
+joyplot <- df %>% 
+  mutate(group = reorder(album, desc(lengthS))) %>%     # reorder based on lengthS
+  ggplot(aes(x = as.numeric(lengthS)/60, y = group, fill = group)) +  # fill on group as they are ordered instead of just album! worked! :D
   geom_joy() +
   xlab('Minutes') +
-  scale_x_continuous(breaks = pretty_breaks(10))
+  scale_x_continuous(breaks = pretty_breaks(10)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  scale_fill_manual(values = rep(c("#006400", "#404040"), length(unique(df$album)))) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+joyplot
+# near the longer albums, what really sets them apart is the small number of songs that are 
+# 6 minutes or longer... otherwise mainly max out at around 4 minute long songs
+# AI-Water should not really count as it's position is due to a 6 min long instrumental!
+# the two shortest, seen in "TBEATBN" and "Identity Crisis" are also ~minute long instrumentals!
+
+
+# add vertical mean song length line? geom_vline
+
 # vertical line for each lengthS by album?
 
 library(grid)
@@ -186,53 +243,26 @@ pushViewport(viewport(layout = grid.layout(1,2)))
 print(joyplot, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
 print(hist, vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
 
-gridExtra::grid.arrange(joyplot, hist)
+gridExtra::grid.arrange(joyplot, hist, nrow = 1)
 # doesn't look very good in this instance...
+?grid.arrange
 
 
+albums_lengths %>% mutate(group = reorder(album, desc(duration))) %>% 
+  ggplot(aes(x = as.numeric(duration), y = group, fill = group)) +  # fill on group as they are ordered instead of just album! worked! :D
+  geom_joy() +
+  xlab('seconds') +
+  scale_x_continuous(breaks = pretty_breaks(10)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  scale_fill_manual(values = rep(c("#006400", "#404040"), length(unique(song_lengths$album)))) +
+  theme_bw() +
+  theme(legend.position = "none")
 
-# Song writers for Thrice  ------------------------------------------------
-
-# not much meaning for this data as 99.9999% of songs written by Dustin, maybe for some other band.
-
-writersAll <- paste(df$writers, collapse=', ')        # turn all artists into one list. each separated by commas (collapse = ', ')
-writersAll <- str_replace_all(writersAll, ',,', ',')  # fix any double-commas typos
-glimpse(writersAll)  # still one gigantic chr list
-
-writersAll <- unlist(strsplit(writersAll, ', ')) # unlist writers. separated by the commas. (?), each appear "individually".
-glimpse(writersAll)   # now a character vector of length 104!
-
-
-writersList <- sort(unique(writersAll))     # List of all UNIQUE writers.
-writersList    # Dustin, Eddie, Ian Stift, Riley     (99% DUstin tho)
-
-library(stringr)
-writersListLabel <- str_replace_all(writersList, ' ', '_') # label of writers, replace " " with "_" for calling purposes
-writersListLabel   # now Dustin_Kensrue, Ian_Stift   etc.
-
-
-dfWriters <- df # copy df into new dfWriters dataframe
-
-for(i in 1:length(writersList)){
-  dfWriters[,writersListLabel[i]] <- str_detect(dfWriters$writers, writersList[i]) # detect per each row (song) which writer in WriterList appears T/F
-}
-
-buffer <- dfWriters[, 10:13]   # all rows with writers as T/F. 
-
-writers <-  data.frame(writer = writersList,           # name of writer from writerlist
-                       nSongs = apply(buffer, 2, sum), # number of songs written by writer from writerlist
-                       row.names = NULL,
-                       stringsAsFactors = F) 
-
-writers   # Dustin: 101, Eddie: 1, Ian Stift: 1, Riley: 1
-
-writers <- writers %>%
-  arrange(desc(nSongs))     # not much to see here as 99.999% of Thrice songs written by Dustin...LOL.
-
-writers
-
-str(writers)   # writer = chr
-writers %>%
-  mutate(writer = as.factor(writer)) %>%
-  mutate(writer = reorder(writer, nSongs)) %>%
-  top_n(10)           # ... i mean it's mainly just Dustin writing the songs...
+albums_lengths %>% str()
+albums_lengths %>% select(duration) %>% class()
+str(df)
+class(albums_lengths$duration)
+class(df$length)
+albums_lengths$duration %>% 
+  seconds_to_period() %>% 
+  as.numeric()  # this converts back into seconds though...
