@@ -2,22 +2,24 @@
 title: "thrice_initial_looks.r"
 author: "Ryo Nakagawara"
 date: "Sat Sep 30 11:19:01 2017"
+output: 
+  md_document: 
+    variant: markdown_github
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 ```
 
-Hello, for those who know me well you would know that my favorite band is [Thrice](https://en.wikipedia.org/wiki/Thrice)! For those that aren't familiar they are a post-hardcore rock band from California, specifically the area I went to college in OC/Irvine. This article will be Part 1 of a series that will cover data analysis of Thrice's lyrics. Part 1, however, we will just be looking at doing some exploratory analysis with all of the non-lyrics data so we can all get a understanding of the context of what we are dealing with before we deep-dive into the lyrics!
+Hello, for those who know me well you would know that my favorite band is [Thrice](https://en.wikipedia.org/wiki/Thrice)! For those that aren't familiar with them they are a post-hardcore rock band from California, specifically the area around where I went to college (OC/Irvine area). This article will be **Part 1** of a series that will cover data analysis of Thrice's lyrics. Part 1, however, we will just be looking at doing some exploratory analysis with all of the non-lyrics data so we can all get a understanding of the context of what we are dealing with before we deep-dive into the lyrics!
 
 ```{r }
 # Packages:
-library(stringr)
-library(lubridate)
-library(gridExtra)
-library(tidyverse)
-library(scales)
-library(ggplot2)
+library(tidyverse)     # for dplyr and tidyr
+library(lubridate)     # measuring and calculating time periods
+library(scales)        # fiddling with scales on our plots
+library(stringr)       # detecting string patterns
+library(gridExtra)     # arranging multiple plots in a single output
 
 # Load and tidy  ----------------------------------------------------------
 
@@ -26,7 +28,7 @@ str(df, list.len = 3)
 
 ```
 
-One of the things to note about reading in files into the R environment, if you already have headers in the dataset you are importing, you need to set `header = TRUE` or else your column/variable names will appear on their own as the first row of each column, as shown below:
+One of the important things to note about reading in files into the R environment is that if you already have headers in the dataset you are importing, you need to set `header = TRUE` or else your column/variable names will appear on their own as the first row of each column, as shown below:
 
 ```{r}
 
@@ -44,10 +46,10 @@ glimpse(df)
 
 ```
 
-As we can see the song `ID`, `year`, `track num` variables are all of the type **"integer"**, all others are **"character"**" types, even the `length` and `lengthS` variables. To transform these last two variables we can use the `lubridate` package. The ``ms()` and `seconds()` functions transforms **"character"** or **"numeric"** types into a **"Period"** type, which is a specific class can track changes between two date-times in the `lubridate` package. Concurrently we can turn `album` and `year` variables into a factor!
-
+As we can see the song `ID`, `year`, `track num` variables are all of the type `integer`, all others are `character` types, even the `length` and `lengthS` variables. To transform these last two variables we can use the `lubridate` package. The ``ms()` and `seconds()` functions in this package transforms `character` or `numeric` types into a `Period` type, which is a specific class that can track the changes between date/times. Concurrently we can turn `album` and `year` variables into a factor!
 
 ```{r}
+library(lubridate)
 
 df <- df %>% 
   mutate(album = factor(album, levels = unique(album)),
@@ -72,7 +74,7 @@ length(unique(df$album))
 
 ```
 
-11 albums so far! Do note that in reality, **The Alchemy Index** albums (divided into the four elements of _Fire_, _Water_, _Air_, and _Earth_) were organized into two albums of two elements each (released in 2007 and 2008 respectively). I divided each element album individually because they're each stylistically very different and for the purposes of the lyrics analysis, I thought it would be better to categorize them into distinct albums.
+11 albums so far! Do note that in reality, _The Alchemy Index_ albums (divided into the four elements of _Fire_, _Water_, _Air_, and _Earth_) were organized into two albums of two elements each (released in 2007 and 2008 respectively). I divided each element album individually because they're each stylistically very different and for the purposes of the lyrics analysis, I thought it would be better to categorize them into distinct albums.  
 
 Another way to do the above and in much readable code is to use the `n_distinct()` function from the `dply` package while also taking advantage of the `magrittr` pipes:
 
@@ -81,6 +83,15 @@ Another way to do the above and in much readable code is to use the `n_distinct(
 df %>% select(album) %>% n_distinct()  
 
 ```
+
+How many total songs have Thrice released?
+
+```{r}
+
+df %>% select(title) %>% n_distinct()
+
+```
+
 
 Now let's list all of the Thrice albums by name:
 
@@ -96,26 +107,26 @@ What is the length in seconds and minutes of each album?
 
 df %>% 
   group_by(album, year) %>% 
-  summarise(SongNum = n(),
+  summarise(num_songs = n(),    # Number of songs in each album
             duration = as.duration(sum(lengthS))) %>% 
   arrange(desc(duration))
 
 ```
 
-**Major/Minor** and **Vheissu** are longest albums, both totalling up to a bit over 49 mins!
+_Major/Minor_ and _Vheissu_ are the longest albums, both totalling up to a bit over 49 mins!
 
 How about the length of each song?
 
 ```{r}
 
 df %>% 
-  group_by(title, album) %>% 
+  group_by(title) %>% 
   summarise(duration = as.duration(sum(lengthS))) %>% 
   arrange(desc(duration))
   
 ```
 
-Besides grouping with `group_by()` and summarizing with `summarize()`, there are other ways to filter our data. For example, let's say we want to see the total duration of **"The Alchemy Index"** (Fire, Water, Earth, and Air) then we could use the `grepl()` function to search for all albums with the term "Index" in it:
+Besides grouping with `group_by()` and summarizing with `summarize()`, there are other ways to filter our data. For example, let's say we want to see the total duration of _The Alchemy Index_ (*Fire*, _Water_, _Earth_, and _Air_) then we could use the `grepl()` function to search for all albums with the term "Index" in it:
 
 ```{r}
 
@@ -125,7 +136,7 @@ df %>%
 
 ```
 
-or use `stringr` package's `str_detect()` function to find all instances inside `album` which has the term "Index" in it:
+or we can use `stringr` package's `str_detect()` function to find all instances inside `album` which has the term "Index" in it:
 
 ```{r}
 library(stringr)
@@ -136,7 +147,7 @@ df %>%
 
 ```
 
-Both do practically the same thing. The `seconds_to_period()` function here essentially allows us to create a `Period` output (Days/Hours/Minutes/Seconds) from the `seconds` input of our variable `lengthS`.
+Both do practically the same thing. The `seconds_to_period()` function here essentially allows us to create a `Period` output (Days/Hours/Minutes/Seconds) from the variable `lengthS` (which is in seconds).  
 
 If we wanted to look at a specific album:
 
@@ -154,19 +165,19 @@ How about we try summarizing as we did a few code chunks back but use the `secon
 
 df %>% 
   group_by(album) %>% 
-  summarise(duration_minutes = seconds_to_period(sum(lengthS))) %>% 
+  summarize(duration_minutes = seconds_to_period(sum(lengthS))) %>% 
   arrange(desc(duration_minutes))
 
 df %>% 
   group_by(title) %>% 
-  summarise(duration_song = seconds_to_period(sum(lengthS))) %>% 
+  summarize(duration_song = seconds_to_period(sum(lengthS))) %>% 
   arrange(desc(duration_song))
 
 ```
 
-Unfortunately, the seconds_to_period() conversion doesn't seem to work well with `summarize()` across the entire set of the songs or albums... I find it very weird as from previous times we used it, such as when we summarized all the Alchemy Index albums together, it worked perfectly fine. I'll need to go to StackOverflow to see what the problem is!
+Unfortunately, the seconds_to_period() conversion doesn't seem to work well with `summarize()` across the entire set of the songs or albums. I find it very weird as from previous times we used it, such as when we summarized all the Alchemy Index albums together, it worked perfectly fine. _I'll have to look into this later..._  
 
-Leaving that aside for now (especially since we can still calculate the sums just fine using `duration()`), let's start plotting to visualize the song lengths for Thrice!
+Leaving that aside for now (especially since we can still calculate the sums just fine using `duration()`), let's start plotting to visualize the song lengths for Thrice!  
 
 ## Plot song lengths!
 
@@ -183,13 +194,13 @@ df %>% ggplot(aes(x = as.numeric(lengthS))) +
                      limits = c(0, 420), expand = c(0, 0)) +  # set limits manually
   xlab('Seconds') +
   ylab('# of Songs') +
-  labs(title = 'Distr. of Songs by Length') +
+  labs(title = 'Distribution of Thrice Songs by Length') +
   theme_bw() +
   theme(axis.text = element_text(size = 14, face = "bold", color = "#252525"))
 
 ```
 
-Let's try plotting in minutes as well by dividing by 60, it won't be a perfect conversion as it's not in base-60 but it's good enough for our purposes. Also, the `period` variable type that we created doesn't seem to work with ggplot as far as I know, which is why you have to convert it to `numeric` in `ggplot()`.
+Let's try plotting in minutes as well by dividing the lenghtS (in seconds) by 60, it won't be a perfect conversion as it's not sexagesimal (base-60) but it's good enough for our purposes. Also, the `period` variable type that we created doesn't seem to work with ggplot as far as I know, which is why you have to convert it to `numeric` in `ggplot()`.
 
 ```{r}
 
@@ -202,14 +213,14 @@ df %>% ggplot(aes(x = as.numeric(lengthS)/60)) +
   scale_x_continuous(breaks = pretty_breaks(5)) +
   xlab('Minutes') +
   ylab('# of Songs') +
-  labs(title = 'Distr. of Songs by Length') +
+  labs(title = 'Distribution of Thrice Songs by Length') +
   theme_bw() +
   theme(axis.text = element_text(size = 14, color = "#252525"),
         axis.title = element_text(size = 14))
 
 ```
 
-Change to plot by length in minutes (not perfect as not in base 60)
+Change to plot by length in minutes (not perfect as it won't be in base 60)
 
 ```{r}
 
@@ -222,14 +233,14 @@ histogram <- df %>%
   scale_x_continuous(breaks = pretty_breaks()) +
   xlab('Minutes') +
   ylab('# of Songs') +
-  labs(title = 'Distr. of Songs by Length') +
+  labs(title = 'Distribution of Thrice Songs by Length') +
   theme_bw() +
   theme(axis.text = element_text(size = 8, color = "#252525"),
         axis.title = element_text(size = 8)) 
 
 ```
 
-How can we see differences between albums? We can use subset our data to create mini-plots for each individual level of our variable (`album` in our case). facet_wrap() 
+How can we see differences between albums? We can use subset our data to create mini-plots for each individual level of our variable (`album` in our case) using facets. First let's try the `facet_wrap()` function which  
 
 ```{r}
 
@@ -237,32 +248,30 @@ histogram + facet_wrap(~album)
 
 ```
 
-With this setup we can see the distribution for an individual album quite well, however it's hard to compare across different albums unless they are situated in the same column.
+With this setup we can see the distribution for an individual album quite well, however it's hard to compare across different albums unless they are situated in the same column.  
 
 How about we try it the other way around, with the plot of each album being a row instead while also add some trend lines? This time we'll use the `facet_grid()` function with the levels of the variable (`album`) being distributed vertically:
 
 ```{r}
 
 histogram + facet_grid(album ~.) + 
-  geom_smooth(se = FALSE, stat = "bin", bins = 10, col = "red")
+  geom_smooth(se = FALSE, stat = "bin", bins = 10, col = "#FF3030")
 
 ```
 
-That looks **really bad**. On one hand, we can compare the histograms against eachother easily, but the bars are all squished and that makes it hard to discern any differences. There are just way too many albums and not enough screen space to take advantage of facetting like this.
+That looks **really bad**. On one hand, we can compare the histograms against eachother easily, but the bars are all squished and that makes it hard to discern any differences. There are just way too many albums and not enough screen space to take advantage of facetting like this.  
 
-If there weren't so many albums it'll look better but even then, the trend lines aren't very smooth in the first place.
-
-What we can do is try out a different plotting method altogether, so now let's introduce...
+If there weren't so many albums it'll look better but even then, the trend lines aren't very smooth in the first place.  
+What we can do is try out a different plotting method altogether, so now let's introduce...  
 
 ## Joy plots!
 
-Joy plots engulfed the data science/visualization community during the past summer. First popularized in a post by Henrik Lindberg on ["peak times for sports and leisure"](https://www.reddit.com/r/dataisbeautiful/comments/6m0wo7/peak_time_for_sports_and_leisure_oc/), joyplots are useful for visualizing changes in distribution over time or space and was made to be an alternative to heatmaps. Amidst much debate on the various advantages and disadvantages of this visualization method all across social media, Claus Wilke released the [ggjoy](https://cran.r-project.org/web/packages/ggjoy/vignettes/introduction.html) package that allows you to easily make joy plots on top of the existing `ggplot2` package. 
+Joy plots engulfed the data science/visualization community during the past summer. First popularized in a post by Henrik Lindberg on ["peak times for sports and leisure"](https://www.reddit.com/r/dataisbeautiful/comments/6m0wo7/peak_time_for_sports_and_leisure_oc/), joyplots are useful for visualizing changes in distribution over time or space and was made to be an alternative to heatmaps. Amidst much debate on the various advantages and disadvantages of this visualization method all across social media, Claus Wilke released the [ggjoy](https://cran.r-project.org/web/packages/ggjoy/vignettes/introduction.html) package that allows you to easily make joy plots on top of the existing `ggplot2` package.   
 
 I finally have a chance to put this to practice with my own data so let's try it out here! 
 
 ```{r}
 # Joy Plots ---------------------------------------------------------------
-
 library(ggjoy)
 
 df %>% 
@@ -273,9 +282,9 @@ df %>%
 
 ```
 
-You can see that the the ridgelines are drawn from the densities of the data along time on the x-axis. The more numerous the amount of songs of any particular duration of time, the higher the ridges appear, with the overall effect being that of a mountain range tha can be compared across different groups, in this case Thrice's albums.
+You can see that the the ridgelines are drawn from the densities of the data along time on the x-axis. The more numerous the amount of songs of any particular duration of time, the higher the ridges appear, with the overall effect being that of a mountain range tha can be compared across different groups, in this case Thrice's albums.  
 
-Now let's add some color and mess with the scales a bit...
+Now let's add some color (dark green = `#006400`, dark grey = `#404040`) and tinker with the scales a bit...
 
 ```{r}
 
@@ -286,7 +295,7 @@ joyplot <- df %>%
   xlab('Minutes') +
   scale_x_continuous(breaks = pretty_breaks(10)) +
   scale_y_discrete(expand = c(0, 0)) +
-  scale_fill_manual(values = rep(c("#006400", "#404040"), length(unique(df$album)))) +
+  scale_fill_manual(values = rep(c("#006400", "#404040"), n_distinct(df$album))) +
   theme_bw() +
   theme(legend.position = "none")
 
@@ -294,13 +303,29 @@ joyplot
 
 ```
 
-From the joyplot you can clearly see the density of songs shift from around 3 minutes in "The Illusion of Saftey" to around 4 minutes or more in the bottom few albums. The only thing really setting apart the longer albums are the amount of songs that are 6 minutes or longer, otherwise most of the songs in an album are around the 4-5 minute mark. A note about **The Alchemy Index: Water** is the fourth track, ["Night Diving"](https://www.youtube.com/watch?v=p3jDFVfys_Q) a 6+ minute long instrumental which, although really nice to listen to on long drives or on a plane, inflates the album's position in the joyplot!
+From the joyplot you can clearly see the density of songs shift from around 3 minutes in "The Illusion of Saftey" to around 4 minutes or more in the bottom few albums. The only thing really setting apart the longer albums are the amount of songs that are 6 minutes or longer, otherwise most of the songs in an album are around the 4-5 minute mark. A note about _The Alchemy Index: Water_ is the fourth track, ["Night Diving"](https://www.youtube.com/watch?v=p3jDFVfys_Q) a 6+ minute long instrumental which, although really nice to listen to on long drives or on a plane, inflates the album's position in the joyplot! In contrast, both _To Be Everywhere And To Be Nowhere_ and _Identity Crisis_ also have instrumentals but with a length of around a minute each!  
 
-In contrast, both **"To Be Everywhere And To Be Nowhere"** and **"Identity Crisis"** also have instrumentals but with a lenght of around a minute each!
-
-Finally, let's compare our histogram with the joyplot!
+Finally, let's compare our histogram with the joyplot!  
 
 We can use the `grid` package to customize layouts:
+
+```{r include=FALSE}
+hist <- df %>% 
+  mutate(group = reorder(album, lengthS)) %>%
+  arrange(group) %>% 
+  ggplot(aes(x = as.numeric(lengthS)/60, fill = group)) + 
+  geom_histogram(binwidth = 0.5, 
+                 color = "#FFFFFF") +
+  scale_y_continuous(breaks = pretty_breaks()) +
+  scale_x_continuous(breaks = pretty_breaks(5)) +
+  xlab('Minutes') +
+  facet_grid(group ~.) +
+  scale_fill_manual(values = rep(c("#006400", "#404040"), n_distinct(df$album))) +
+  theme_bw() +
+  theme(legend.position = "none",
+        axis.title.y = element_blank())
+
+```
 
 ```{r}
 library(grid)
@@ -315,25 +340,6 @@ print(hist, vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
 Or you could use the `gridExtra` package and the `grid.arrange()` function which is a lot more faster:
 
 ```{r include=FALSE}
-hist <- df %>% 
-  mutate(group = reorder(album, lengthS)) %>%
-  arrange(group) %>% 
-  ggplot(aes(x = as.numeric(lengthS)/60, fill = group)) + 
-  geom_histogram(binwidth = 0.5, 
-                 color = "#FFFFFF") +
-  scale_y_continuous(breaks = pretty_breaks()) +
-  scale_x_continuous(breaks = pretty_breaks(5)) +
-  xlab('Minutes') +
-  ylab('# of Songs') +
-  labs(title = 'Distr. of Songs by Length') +
-  facet_grid(group ~.) +
-  scale_fill_manual(values = rep(c("#006400", "#404040"), length(unique(df$album)))) +
-  theme_bw() +
-  theme(legend.position = "none")
-
-```
-
-```{r include=FALSE}
 joyplot2 <- df %>% 
   mutate(group = reorder(album, desc(lengthS))) %>%     
   ggplot(aes(x = as.numeric(lengthS)/60, y = group, fill = group)) +  
@@ -341,7 +347,7 @@ joyplot2 <- df %>%
   xlab('Minutes') +
   scale_x_continuous(breaks = pretty_breaks(10)) +
   scale_y_discrete(expand = c(0, 0)) +
-  scale_fill_manual(values = rep(c("#006400", "#404040"), length(unique(df$album)))) +
+  scale_fill_manual(values = rep(c("#006400", "#404040"), n_distinct(df$album))) +
   theme_bw() +
   theme(legend.position = "none",
         axis.text.y = element_blank(),
@@ -356,8 +362,10 @@ grid.arrange(joyplot2, hist, nrow = 1)
 
 ```
 
-We can see that the joyplots make the data a lot more understandable (for the final comparison I took out the y-axis labels for better visibility).
+We can see that the joyplots make the data a lot more understandable (for the final comparison I took out the y-axis labels so we can see the joyplot better).  
 
-And that concludes Part 1! Next we will be getting into the real meat of sentiment analysis using the `tidytext` package! 
-
-
+And that concludes **Part 1**! Next we will be getting into the real meat of sentiment analysis using the `tidytext` package!   
+  
+  
+    
+      
