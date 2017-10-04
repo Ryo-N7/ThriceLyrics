@@ -3,17 +3,11 @@ library(tidyverse)
 library(tidytext)
 library(lubridate)
 library(stringr)
-library(broom)
-library(RColorBrewer)
 
 library(gplots)
 library(ggrepel)
 library(scales)
-library(hrbrthemes)
-library(wordcloud)
 library(gridExtra)
-
-library(knitr)
 
 # load dataset ------------------------------------------------------------
 
@@ -40,23 +34,21 @@ lineToken <- df %>%
   unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
   mutate(lineCount = row_number())
 
-lineToken # lyrics separated by line, "<br>" tag
+glimpse(lineToken)
+# lyrics separated by line, "<br>" tag
 
 wordToken <-  lineToken %>% 
   unnest_tokens(word, line) %>% 
   mutate(wordCount = row_number()) %>%    # count of words in order of line, song, album
   select(-numLines, -numWord)
 
-wordToken # uncleaned unigrams containing all 'stop words' such as 'I', 'you', 'we', 'very', etc. etc.
+glimpse(wordToken)
+# uncleaned unigrams containing all 'stop words' such as 'I', 'you', 'we', 'very', etc. etc.
 
 
-countWord <- count(wordToken, word, sort=TRUE)
-countWord <- head(countWord, 100)
+countWord <- wordToken %>% count(word, sort=TRUE)
+countWord  %>% head(10)
 # 'the' is most common....
-
-# empty <- data.frame(a=character(100),b=rep('|',100),c=character(100),
-                    # stringsAsFactors = FALSE)
-
 
 # Include stop_words ------------------------------------------------------
 
@@ -66,19 +58,33 @@ stop_words         # data base of 'stop words' to clean unigrams.
 stop_words %>% head(5)
 
 wordToken2 <- wordToken %>% 
-  anti_join(stop_words) %>%
+  anti_join(stop_words) %>%                 
+  # use anti-join to take out words in wordToken that appear in stop_words
   select(-wordCount, -lineCount) %>% 
   arrange(ID)  # or track_num essentially same thing
 
-countWord2 <- count(wordToken2, word, sort=TRUE)
-countWord2 <- head(countWord2, 100)
+countWord2 <- wordToken2 %>% count(word, sort=TRUE)
 
-countWord2 %>% head(5)
+countWord2 %>% head(10)
 # with no stop words, 'eyes', ''ll', ''ve', and 'love', 'light' are most common
 # interesting in -light- of the fact that sentiment-score wise Thrice songs are overtly negative...
 
+countWord2 %>% head(10) %>% 
+  ggplot(aes(reorder(word, n), n)) + geom_bar(stat = "identity") +
+  coord_flip()
 
-###    CHECKING DATASET WITH SIMPLE DPLYR VERBS!   ####
+
+# WORD CLOUD
+library(wordcloud)
+layout(matrix(c(1,2),1,2, byrow = TRUE))
+
+wordcloud(countWord$word, countWord$n, random.order=FALSE, max.words = 100, 
+          colors=brewer.pal(8, "Dark2"), use.r.layout=TRUE)
+
+wordcloud(countWord2$word, countWord2$n, random.order=FALSE, max.words = 100,
+          colors=brewer.pal(8, "Dark2"), use.r.layout=TRUE)
+
+####    Explore dataset with dplyr verbs!   ####
 
 df %>% summarise(Num.Songs = n()) # 103 songs in total, as each row = 1 song
 
@@ -89,14 +95,14 @@ df %>% group_by(album) %>%
 
 # song with most # of lines
 df %>% group_by(title) %>%
-  select(title, album, numLines) %>% 
-  arrange(desc(numLines))    
+  select(title, numLines) %>% 
+  arrange(desc(numLines)) %>% 
+  head(10)
 
 # album with most # of lines
 df %>% group_by(album) %>% 
-  select(album, numLines) %>% 
-  arrange(desc(numLines))
-
+  summarize(lines = sum(numLines)) %>% 
+  arrange(desc(lines))
 
 # words per song?
 df %>% group_by(title) %>% 
@@ -104,12 +110,19 @@ df %>% group_by(title) %>%
   arrange(desc(numWord))    
 # The Weight has the most words (all incl. stop words)... also includes <br> though...
 
+# words per album?
 aggregate(df$numWord, by = list(df$album), FUN = sum) %>% 
   arrange(desc(x))   
 # instrumentals still count the blank as 1, but insignificant.
 # numWord by album
-aggregate(df$numWord, by = list(df$album), FUN = sum, na.rm = F)
+# with dplyr
+df %>% group_by(album) %>% 
+  summarize(num = sum(numWord)) %>% 
+  arrange(desc(num)) %>% 
+  ggplot(aes(reorder(album, num), num)) + geom_bar(stat = "identity") + coord_flip()
 
+
+# random stuff
 df %>% filter(album == "Vheissu") %>% select(numWord) %>% sum()
 
 
@@ -125,16 +138,22 @@ df %>%
   arrange(desc(number)) %>% 
   head(5)
 
+df %>% 
+  filter(title == "As The Crow Flies") %>% 
+  select(-lyrics)
+
 wordToken2 %>% 
   group_by(title) %>% 
   count(word) %>% 
   arrange(desc(n))
 
+
 ###
 ###
 ###
 
-WordsPerSong_no_stop <- df %>%
+# WordsPerNoStop
+df %>%
   mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
   unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
   unnest_tokens(word, line) %>%
@@ -143,28 +162,12 @@ WordsPerSong_no_stop <- df %>%
   summarize(wordcounts = n()) %>% 
   arrange(desc(wordcounts))
 
+# WordsPerSong
 WordsPerSong <- df %>%
   mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
   unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
   unnest_tokens(word, line) %>%      # NOT filter stop words (they are still words in the lyrics for the total count)
   group_by(title) %>% 
-  summarize(wordcounts = n()) %>%    # # of rows per group(title)  ????
-  arrange(desc(wordcounts))
-
-LinesPerSong <- df %>%
-  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
-  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
-  group_by(title) %>% 
-  summarise(linecounts = n()) %>% 
-  arrange(desc(linecounts))
-
-PerSong <- full_join(WordsPerSong, LinesPerSong, by = "title")
-
-
-
-
-# wordcount by song
-asdf <- TEST %>% group_by(title) %>% 
   summarize(wordcounts = n()) %>%    # # of rows per group(title)  ????
   arrange(desc(wordcounts))
 
@@ -176,20 +179,102 @@ WordsPerSong %>%
   scale_x_continuous(breaks = pretty_breaks(n = 10)) +
   scale_y_continuous(breaks = pretty_breaks(n = 10))
 
+# Distribution of Songs by # of Words     same as above^
+medianWord <- median(df$numWord)
+
 df %>% 
-  filter(title == "As The Crow Flies") %>% 
-  select(-lyrics)
+  ggplot(., aes(x = numWord)) +
+  geom_histogram(binwidth = 10,
+                 color = 'white',
+                 fill = 'darkgreen') +
+  geom_vline(aes(xintercept = medianWord), colour = "red", linetype = "dashed", size = 1.25) +
+  scale_y_continuous(breaks = pretty_breaks(), expand = c(0, 0), limits = c(0, 12)) +
+  scale_x_continuous(breaks = pretty_breaks()) +
+  xlab('Total # of Words') +
+  ylab('# of Songs') +
+  labs(title = 'Distribution of Songs by Number of Words', 
+       subtitle = 'Dashed red line: median') + 
+  theme_bw() +
+  theme(panel.grid.minor = element_blank(), 
+        plot.title = element_text(hjust = 0.5))
 
 
+# LinesPerSong
+df %>%
+  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
+  group_by(title) %>% 
+  summarise(linecounts = n()) %>% 
+  arrange(desc(linecounts))
 
 
+# most frequent unigrams per album:
 
+n <- wordToken2 %>% 
+  group_by(album, word) %>% 
+  summarize(count = n()) %>% 
+  top_n(5) %>% 
+  arrange(album, desc(count))
+
+n <- wordToken2 %>% 
+  group_by(album, word) %>% 
+  summarize(count = n()) %>% 
+  top_n(10)  
+
+n <- wordToken2 %>% 
+  group_by(album) %>% 
+  summarize(count = n()) %>% 
+  top_n(10)  
+  
+plots <- n %>% 
+  nest() %>% 
+  mutate(plot = map2(data, album, ~ggplot(data = .x) + 
+                       geom_bar(stat = "identity", fill = "darkgreen") +
+                       labs(y = NULL, x = NULL)))
+glimpse(plots)
+
+map2(paste0(plots$album, ".pdf"), plots$plot, ggsave)
+
+n %>% 
+  ggplot(aes(word, Count)) +
+  geom_bar(stat = "identity", fill = "darkgreen") +
+  labs(y = NULL, x = NULL) + 
+  facet_grid(.~album, scales = "free_y") +
+  coord_flip()
+  
+###############################################
+
+l <- length(levels(wordToken2$album))
+
+plotList <- list()
+
+for(i in 1:l){
+  part <- wordToken2[wordToken2$album == levels(wordToken2$album)[i],] %>%
+    group_by(album) %>%
+    count(word) %>%
+    top_n(10)
+  p <- ggplot(part[1:10,], aes(reorder(word,n), n)) +
+    geom_bar(stat = "identity", fill='#FCCB85', width=0.65) +
+    #        scale_fill_discrete(drop=F) +
+    labs(y=NULL, x=NULL, title=paste('Album: ', levels(wordToken2$album)[i], sep='')) +
+    coord_flip() +
+    theme(plot.title = element_text(size=11))
+  plotList[[i]] <- p
+}
+do.call(grid.arrange, c(plotList, ncol=3))
 
 
 # Uni-bi-trigrams ---------------------------------------------------------
 
-nGram <- data_frame(text = paste(wordToken$word, collapse = ' '))
-nGramCleaned <- data_frame(text=paste(wordToken2$word, collapse = ' '))
+nGram <- data_frame(text = paste(wordToken$word, collapse = ' '))       # stop-words
+nGramCleaned <- data_frame(text=paste(wordToken2$word, collapse = ' ')) # NO stop-words
+
+countWord2 %>% head(20) %>% 
+  ggplot(aes(reorder(word, n), n)) + 
+  geom_bar(stat = "identity") +
+  coord_flip()
+
+glimpse(countWord2)
 
 # BI
 
@@ -200,8 +285,14 @@ biGramsCleaned <-  nGramCleaned %>%
   unnest_tokens(ngram, text, token = "ngrams", n = 2) %>%
   count(ngram, sort = TRUE)
 
-biGramsCleaned %>%
-  count(ngram, sort = TRUE)
+glimpse(biGrams)
+
+bi_count <- biGrams %>% count(ngram, sort = TRUE)
+
+bi_count %>% head(20) %>% 
+  ggplot(aes(reorder(ngram, n), n)) + 
+  geom_bar(stat = "identity") +
+  coord_flip()
 
 biGramsSep <- biGramsCleaned %>% 
   separate(ngram, c("word1", "word2", sep = " "))
@@ -211,6 +302,13 @@ biGramsSep <- biGramsCleaned %>%
 
 triGrams <-  nGram %>% 
   unnest_tokens(ngram, text, token = "ngrams", n = 3) 
+
+tri_count <- triGrams %>% count(ngram, sort = TRUE)
+
+tri_count %>% head(20) %>% 
+  ggplot(aes(reorder(ngram, n), n)) +
+  geom_bar(stat = "identity") +
+  coord_flip()
 
 triGrams %>% 
   separate(ngram, c("word1", "word2", "word3"), sep = " ") %>% 
@@ -224,6 +322,9 @@ triGrams %>%
   count(word1, word2, word3, sort = T)
 
 ?top_n
+
+
+
 
 # AFINN 
 AFINN <- get_sentiments("afinn")
@@ -267,24 +368,6 @@ numUniqueWords
 
 
 
-# Distribution of Songs by # of Words
-df %>% 
-  ggplot(., aes(x = numWord)) +
-  geom_histogram(binwidth = 10,
-                 color = 'white',
-                 fill = '#FCCB85') +
-  geom_vline(aes(xintercept = medianWord), colour="#990000", linetype="dashed") +
-  coord_cartesian(ylim = c(0, 15)) + 
-  scale_y_continuous(breaks = seq(0, 15, 1)) +
-  scale_x_continuous(breaks = seq(0, 400, 20)) +
-  theme(panel.grid.minor = element_blank()) +
-  xlab('Total # of Words') +
-  ylab('# of Songs') +
-  labs(title = 'Distribution of Songs by Number of Words', 
-       subtitle = 'Verses repeats not included - Dashed red line is median')
-
-
-
 # TABLE:
 
 tab <- cbind(countWord, empty, countWord2)
@@ -294,35 +377,10 @@ kable(tab[1:20,], format='markdown', row.names = F,
 
 
 
-# WORD CLOUD
-layout(matrix(c(1,2),1,2, byrow = TRUE))
-
-wordcloud(countWord$word, countWord$n, random.order=FALSE, max.words = 100, 
-          colors=brewer.pal(8, "Dark2"), use.r.layout=TRUE)
-
-wordcloud(countWord2$word, countWord2$n, random.order=FALSE, max.words = 100,
-          colors=brewer.pal(8, "Dark2"), use.r.layout=TRUE)
 
 
 
-# per album:
-l <- length(levels(wordToken2$album))
 
-plotList <- list()
 
-for(i in 1:l){
-  part <- wordToken2[wordToken2$album == levels(wordToken2$album)[i],] %>%
-    group_by(album) %>%
-    count(word) %>%
-    top_n(10)
-  p <- ggplot(part[1:10,], aes(reorder(word,n), n)) +
-    geom_bar(stat = "identity", fill='#FCCB85', width=0.65) +
-    #        scale_fill_discrete(drop=F) +
-    labs(y=NULL, x=NULL, title=paste('Album: ', levels(wordToken2$album)[i], sep='')) +
-    coord_flip() +
-    theme(plot.title = element_text(size=11))
-  plotList[[i]] <- p
-}
-do.call(grid.arrange, c(plotList, ncol=3))
 
 

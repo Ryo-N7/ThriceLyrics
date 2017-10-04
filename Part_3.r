@@ -1,12 +1,50 @@
+library(tidyverse)
+library(tidytext)
 
+library(ggrepel)
+library(scales)
 
-
+library(wordcloud)
 
 # Load wordtoken2
 
+df <- read.csv('thrice.df.csv', header=TRUE, stringsAsFactors = FALSE)
 
+df <- df %>% 
+  mutate(album = factor(album, levels = unique(album)),
+         length = ms(length),
+         lengthS = seconds(length))
 
+df <- df %>%
+  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%   # replace apostrophes in lyrics with blank
+  mutate(numLines = str_count(lyrics, '<br>') + 1) %>%      # num of lines per song
+  mutate(numWord = str_count(lyrics, ' ') + 1)              # num of words per song
 
+lineToken <- df %>%
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
+  mutate(lineCount = row_number())
+
+lineToken 
+# lyrics separated by line, "<br>" tag
+
+# Include stop_words ------------------------------------------------------
+
+data("stop_words")
+stop_words         # data base of 'stop words' to clean unigrams.
+
+stop_words %>% head(5)
+
+wordToken2 <- 
+  lineToken %>% 
+  unnest_tokens(word, line) %>% 
+  anti_join(stop_words) %>%
+  mutate(wordCount = row_number()) %>% 
+  select(-wordCount, -lineCount) %>% 
+  arrange(ID)  
+
+countWord <- count(wordToken2, word, sort=TRUE)
+countWord %>% head(100)
+# 'the' is most common....
 
 # Sentiment analysis ------------------------------------------------------
 
@@ -55,6 +93,7 @@ top_sentiments <-  word_count %>%
   mutate(word = reorder(word, num)) %>% 
   select(word, sentiment, num)
 
+library(hrbrthemes)
 
 ggplot(top_sentiments, aes(x = word, y = num, fill = sentiment)) +
   geom_bar(stat = 'identity') + 
@@ -69,6 +108,8 @@ ggplot(top_sentiments, aes(x = word, y = num, fill = sentiment)) +
 
 
 # Word cloud:
+library(wordcloud)
+
 tidy_lyrics %>% 
   filter(sentiment != 'neutral') %>% 
   count(word, sentiment, sort = T) %>% 
@@ -182,7 +223,8 @@ wordToken2 %>%
 
 
 # Pos.Neg over TIME (albums):
-ggplot(posneg_lyrics, aes(x = album, y = percent, color = sentiment, group = sentiment)) + 
+ggplot(posneg_lyrics, 
+       aes(x = album, y = percent, color = sentiment, group = sentiment)) + 
   geom_line(size = 1) + 
   geom_point(size = 3) +
   xlab("Album") + ylab("Emotion Words Count (as %)") +
@@ -196,13 +238,15 @@ overall_mean_sd <- emotions_lyrics %>%
   group_by(sentiment) %>% 
   summarise(overall_mean = mean(percent), sd = sd(percent))
 
-ggplot(overall_mean_sd, aes(x = reorder(sentiment, -overall_mean), y=overall_mean)) +
-  geom_bar(stat="identity", fill="darkgreen", alpha=0.7) + 
-  geom_errorbar(aes(ymin=overall_mean-sd, ymax=overall_mean+sd), width=0.2,position=position_dodge(.9)) +
+ggplot(overall_mean_sd, 
+       aes(x = reorder(sentiment, -overall_mean), y = overall_mean)) +
+  geom_bar(stat = "identity", fill = "darkgreen", alpha = 0.7) + 
+  geom_errorbar(aes(ymin = overall_mean-sd, ymax = overall_mean + sd), 
+                width = 0.2, position = position_dodge(.9)) +
   xlab("Emotion Terms") +
   ylab("Emotion words count (%)") +
   ggtitle("Emotion words expressed in Thrice's lyrics") + 
-  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   coord_flip( )
 
 
