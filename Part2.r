@@ -163,33 +163,18 @@ df %>%
   arrange(desc(wordcounts))
 
 # WordsPerSong
-WordsPerSong <- df %>%
-  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
-  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
-  unnest_tokens(word, line) %>%      # NOT filter stop words (they are still words in the lyrics for the total count)
+WordsPerSong <- wordToken %>%      # NOT filter stop words (included in the lyrics for the total count)
   group_by(title) %>% 
-  summarize(wordcounts = n()) %>%    # # of rows per group(title)  ????
+  summarize(wordcounts = n()) %>%    #
   arrange(desc(wordcounts))
 
 # Histogram of Word counts (per Song)   >>>> same as in uni-bi-tri section...
-WordsPerSong %>% 
+one <- WordsPerSong %>% 
   ggplot(aes(x = wordcounts)) + 
-  geom_histogram(binwidth = 10) +
-  geom_vline(xintercept = mean(WordsPerSong$wordcounts), color = "red") +
-  scale_x_continuous(breaks = pretty_breaks(n = 10)) +
-  scale_y_continuous(breaks = pretty_breaks(n = 10))
-
-# Distribution of Songs by # of Words     same as above^
-medianWord <- median(df$numWord)
-
-df %>% 
-  ggplot(., aes(x = numWord)) +
-  geom_histogram(binwidth = 10,
-                 color = 'white',
-                 fill = 'darkgreen') +
-  geom_vline(aes(xintercept = medianWord), colour = "red", linetype = "dashed", size = 1.25) +
+  geom_histogram(binwidth = 10, color = "white", fill = "darkgreen") +
+  geom_vline(xintercept = median(WordsPerSong$wordcounts), color = "red") +
   scale_y_continuous(breaks = pretty_breaks(), expand = c(0, 0), limits = c(0, 12)) +
-  scale_x_continuous(breaks = pretty_breaks()) +
+  scale_x_continuous(breaks = pretty_breaks(), expand = c(0, 0)) +
   xlab('Total # of Words') +
   ylab('# of Songs') +
   labs(title = 'Distribution of Songs by Number of Words', 
@@ -198,6 +183,26 @@ df %>%
   theme(panel.grid.minor = element_blank(), 
         plot.title = element_text(hjust = 0.5))
 
+# Distribution of Songs by # of Words     same as above^ but not as accurate?
+medianWord <- median(df$numWord)
+
+two <- df %>% 
+  ggplot(., aes(x = numWord)) +
+  geom_histogram(binwidth = 10,
+                 color = 'white',
+                 fill = 'darkgreen') +
+  geom_vline(aes(xintercept = medianWord), colour = "red", linetype = "dashed", size = 1.25) +
+  scale_y_continuous(breaks = pretty_breaks(), expand = c(0, 0), limits = c(0, 12)) +
+  scale_x_continuous(breaks = pretty_breaks(), expand = c(0, 0)) +
+  xlab('Total # of Words') +
+  ylab('# of Songs') +
+  labs(title = 'Distribution of Songs by Number of Words', 
+       subtitle = 'Dashed red line: median') + 
+  theme_bw() +
+  theme(panel.grid.minor = element_blank(), 
+        plot.title = element_text(hjust = 0.5))
+
+grid.arrange(one, two)
 
 # LinesPerSong
 df %>%
@@ -209,12 +214,12 @@ df %>%
 
 
 # most frequent unigrams per album:
-# nest on albums!
+# nested on albums!
 
 word_count_nested <- wordToken2 %>% 
   group_by(album, word) %>% 
   summarize(count = n()) %>% 
-  top_n(5) %>% 
+  top_n(10) %>% 
   arrange(album, desc(count)) %>% 
   nest() 
 
@@ -227,7 +232,7 @@ word_count_nested <- word_count_nested %>%
   mutate(plot = map2(data, album, ~ggplot(data = .x) +
            geom_bar(aes(reorder(word, count), count), 
                     stat = "identity", fill = "darkgreen", width = 0.65) +
-           scale_y_continuous(breaks = pretty_breaks(10), limits = c(0, 24), expand = c(0, 0)) +
+           scale_y_continuous(breaks = pretty_breaks(10), limits = c(0, 22), expand = c(0, 0)) +
            ggtitle(.y) +
            labs(x = NULL, y = NULL) +
            coord_flip()  ))
@@ -244,12 +249,9 @@ word_count_nested %>%
   geom_bar(stat = "identity") +
   facet_grid(.~album)
 
-grid.arrange(word_count_nested %>% 
-  unnest(data) %>% 
-  ggplot(aes(x = word, y = count)) +
-  geom_bar(stat = "identity"))
-
+# save all plots in as one list
 nested_plots <- word_count_nested$plot
+
 glimpse(nested_plots)[[1]]
 str(nested_plots, list.len = 2, max.level = 2)
 
@@ -260,34 +262,12 @@ map(c(unlist(nested_plots), grid.arrange, ncol = 3))
 map(nested_plots, grid.arrange)
 map(nested_plots, grid.arrange, ncol = 3, nrow = 5)
 
+# works very easily with cowplot
 library(cowplot)
 cowplot::plot_grid(plotlist = nested_plots, ncol = 3)
 
-# works now!
+# save it individually now!
 map2(paste0(word_count_nested$album, ".pdf"), word_count_nested$plot, ggsave)
-
-# but how to show in one panel a la grid.arrange() ...?
-
-###############################################
-
-l <- length(levels(wordToken2$album))
-
-plotList <- list()
-
-for(i in 1:l){
-  part <- wordToken2[wordToken2$album == levels(wordToken2$album)[i],] %>%
-    group_by(album) %>%
-    count(word) %>%
-    top_n(10)
-  p <- ggplot(part[1:10,], aes(reorder(word,n), n)) +
-    geom_bar(stat = "identity", fill='#FCCB85', width=0.65) +
-    #        scale_fill_discrete(drop=F) +
-    labs(y=NULL, x=NULL, title=paste('Album: ', levels(wordToken2$album)[i], sep='')) +
-    coord_flip() +
-    theme(plot.title = element_text(size=11))
-  plotList[[i]] <- p
-}
-do.call(grid.arrange, c(plotList, ncol=3))
 
 
 # Uni-bi-trigrams ---------------------------------------------------------

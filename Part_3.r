@@ -59,24 +59,43 @@ tidy_lyrics <- wordToken2 %>%
   ungroup()
 
 # Net sentiment ratio by album across time.
+tidy_lyrics %>% 
+  group_by(album) %>% 
+  count(sentiment) %>% 
+  spread(key = sentiment, value = n) %>% 
+  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral))
+
+tidy_lyrics %>% 
+  count(sentiment)
+
+tidy_lyrics %>% 
+  count(sentiment) %>% 
+  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% 
+  select(album, year, sentiment_ratio)
+
 lyrics_sentiment <-  tidy_lyrics %>% 
+  group_by(album, year) %>% 
   count(sentiment) %>% 
   spread(key = sentiment, value = n) %>% 
   mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% 
   select(album, year, sentiment_ratio)
 
-lyrics_sentiment %>% ggplot(aes(x = album, y = sentiment_ratio)) + 
-  geom_bar(aes(fill = sentiment_ratio < 0), stat = 'identity') +
-  geom_text(aes(label = album, hjust = ifelse(sentiment_ratio >= 0, -0.15, 1.15)), vjust = 0.5) +
+library(hrbrthemes)
+
+lyrics_sentiment %>% 
+  ggplot(aes(reorder(album, desc(sentiment_ratio)), sentiment_ratio)) + 
+  geom_bar(stat = 'identity', fill = "darkgreen") +  # aes(fill = sentiment_ratio > 0)   irrelevant as ALL negative...
+  geom_text(aes(label = album, 
+                hjust = ifelse(sentiment_ratio >= 0, -0.15, 1.15)), vjust = 0.5) +
   scale_fill_manual(guide = FALSE, values = c('#565b63', '#c40909')) +
-  scale_y_percent(limits = c(-0.25, 0.05)) +
+  scale_y_percent(limits = c(-0.25, 0.05)) +    # from hrbrthemes
   coord_flip() +
   theme_ipsum(grid = "X") +
   theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank())
+        axis.ticks.y = element_blank()) +
+  labs(x = "Albums", y = "Sentiment Ratio (%)")
 # needs some work........    why negative? look at HOW negative is defined.
 # negative talk but with positive action with negative undertones???? 
-# order DESC instead...???
 
 
 # Most common pos.neg words in THrice lyrics!
