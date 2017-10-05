@@ -209,39 +209,65 @@ df %>%
 
 
 # most frequent unigrams per album:
+# nest on albums!
 
-n <- wordToken2 %>% 
+word_count_nested <- wordToken2 %>% 
   group_by(album, word) %>% 
   summarize(count = n()) %>% 
   top_n(5) %>% 
-  arrange(album, desc(count))
+  arrange(album, desc(count)) %>% 
+  nest() 
 
-n <- wordToken2 %>% 
-  group_by(album, word) %>% 
-  summarize(count = n()) %>% 
-  top_n(10)  
+word_count_nested$data
 
-n <- wordToken2 %>% 
-  group_by(album) %>% 
-  summarize(count = n()) %>% 
-  top_n(10)  
-  
-plots <- n %>% 
-  nest() %>% 
-  mutate(plot = map2(data, album, ~ggplot(data = .x) + 
-                       geom_bar(stat = "identity", fill = "darkgreen") +
-                       labs(y = NULL, x = NULL)))
-glimpse(plots)
+word_count_nested$data[[1]]
 
-map2(paste0(plots$album, ".pdf"), plots$plot, ggsave)
+library(scales)
+word_count_nested <- word_count_nested %>% 
+  mutate(plot = map2(data, album, ~ggplot(data = .x) +
+           geom_bar(aes(reorder(word, count), count), 
+                    stat = "identity", fill = "darkgreen", width = 0.65) +
+           scale_y_continuous(breaks = pretty_breaks(10), limits = c(0, 24), expand = c(0, 0)) +
+           ggtitle(.y) +
+           labs(x = NULL, y = NULL) +
+           coord_flip()  ))
 
-n %>% 
-  ggplot(aes(word, Count)) +
-  geom_bar(stat = "identity", fill = "darkgreen") +
-  labs(y = NULL, x = NULL) + 
-  facet_grid(.~album, scales = "free_y") +
-  coord_flip()
-  
+word_count_nested$plot
+word_count_nested$plot[[1]]
+word_count_nested$plot[[2]]
+word_count_nested$plot[[9]]
+word_count_nested$plot[[11]]
+
+word_count_nested %>% 
+  unnest(data) %>% 
+  ggplot(aes(x = word, y = count)) +
+  geom_bar(stat = "identity") +
+  facet_grid(.~album)
+
+grid.arrange(word_count_nested %>% 
+  unnest(data) %>% 
+  ggplot(aes(x = word, y = count)) +
+  geom_bar(stat = "identity"))
+
+nested_plots <- word_count_nested$plot
+glimpse(nested_plots)[[1]]
+str(nested_plots, list.len = 2, max.level = 2)
+
+do.call(grid.arrange, c(word_count_nested$plot, ncol = 3))
+
+# how tf do i get this to work with purrr? lol.
+map(c(unlist(nested_plots), grid.arrange, ncol = 3))
+map(nested_plots, grid.arrange)
+map(nested_plots, grid.arrange, ncol = 3, nrow = 5)
+
+library(cowplot)
+cowplot::plot_grid(plotlist = nested_plots, ncol = 3)
+
+# works now!
+map2(paste0(word_count_nested$album, ".pdf"), word_count_nested$plot, ggsave)
+
+# but how to show in one panel a la grid.arrange() ...?
+
 ###############################################
 
 l <- length(levels(wordToken2$album))
