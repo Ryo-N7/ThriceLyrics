@@ -46,6 +46,9 @@ countWord <- count(wordToken2, word, sort=TRUE)
 countWord %>% head(100)
 # 'the' is most common....
 
+
+
+
 # Sentiment analysis ------------------------------------------------------
 
 # using WORDTOKEN2 <<<
@@ -136,7 +139,7 @@ tidy_lyrics %>%
   comparison.cloud(colors = c("#af8dc3", "#7fbf7b"))
 
 
-# Distribution of emotion words BOXPLOT:
+# Distribution of emotion words BOXPLOT: ####
 
 emotions_lyrics <- wordToken2 %>% 
   filter(!grepl('[0-9]', word)) %>% 
@@ -185,7 +188,7 @@ boxplot2(emotion_box[ , c(2:4)], col = cols, lty = 1, shrink = 0.8, textcolor = 
 
 
 
-# Pos.Neg words distribution BOXPLOT:
+# Pos.Neg words distribution BOXPLOT: ####
 posneg_lyrics <- wordToken2 %>% 
   filter(!grepl('[0-9]', word)) %>% 
   left_join(get_sentiments("bing"), by = "word") %>%          # larger diference when use "bing" vs. "nrc" database! MUST RESEARCH DIFFERENCES!!!!!!!!
@@ -196,10 +199,13 @@ posneg_lyrics <- wordToken2 %>%
   select(-freq) %>% 
   ungroup() 
 
-
+# make "tidy" format with spread():
 posneg_box <- posneg_lyrics %>% 
   spread(sentiment, percent, fill = 0) %>% 
   ungroup()
+
+library(gplots)
+cols <- colorRampPalette(brewer.pal(7, "Set3"), alpha = T)(8)
 
 boxplot2(posneg_box[ , c(2:3)], col = cols, lty = 1, shrink = 0.8, textcolor = "red", 
          xlab = "Positive or Negative", ylab = "PosNeg/Total (as %)", 
@@ -209,7 +215,7 @@ boxplot2(posneg_box[ , c(2:3)], col = cols, lty = 1, shrink = 0.8, textcolor = "
 
 
 
-# Sentiments Over TIME (or album in this case):
+# Sentiments Over TIME (or album in this case): ####
 emotions_lyrics <- wordToken2 %>% 
   filter(!grepl('[0-9]', word)) %>% 
   left_join(get_sentiments("bing"), by = "word") %>% 
@@ -221,15 +227,69 @@ emotions_lyrics <- wordToken2 %>%
   select(-freq) %>% 
   ungroup() 
 
+# with NRC >>> ALL sentiments 
+emotions_lyrics <- wordToken2 %>% 
+  filter(!grepl('[0-9]', word)) %>% 
+  left_join(get_sentiments("nrc"), by = "word") %>% 
+  mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   # if use "bing", need to add in 'neutral' for all NOT pos/neg
+  filter(sentiment != "neutral") %>% 
+  group_by(album, sentiment) %>% 
+  summarize(freq = n()) %>% 
+  mutate(percent = round(freq / sum(freq)*100)) %>% 
+  select(-freq) %>% 
+  ungroup() 
 
 # with all the sentiments = use nrc, not ^ code
-ggplot(emotions_lyrics, aes(x = album, y = percent, color = sentiment, group = sentiment)) + 
+ggplot(emotions_lyrics, aes(x = album, y = percent/100, color = sentiment, group = sentiment)) + 
   geom_line(size = 1) + 
   geom_point(size = 3) +
-  xlab("Album") + ylab("Emotion Words Count (as %)") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  scale_y_continuous(breaks = pretty_breaks(10), labels = percent_format()) +
+  xlab("Album") + ylab("Proportion of Emotion Words") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank())
 
 # Rather messy. no noticeable trends to be found...! ALthough fear has started to creep up after AI:Fire outlier.
+
+# ONLY positive-negative as takes up a lot of space...
+emotions_lyrics %>% 
+  filter(sentiment == "positive" | sentiment == "negative") %>% 
+  ggplot(aes(album, percent/100, color = sentiment, group = sentiment)) +
+  geom_line(size = 1.5) +
+  geom_point(size = 3.5) +
+  scale_y_continuous(breaks = pretty_breaks(10), labels = percent_format()) +
+  xlab("Album") + ylab("Proportion of Emotion Words") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank())
+
+# WITHOUT positive-negative:
+# year <- factor(c(2000, 2002, 2003, 2005, 2007.1, 2007.2, 2008.1, 2008.2, 2009, 2011, 2016), ordered = TRUE)
+# album <- factor(c("Identity Crisis", "The Illusion of Safety", "The Artist In The Ambulance",
+#                  "Vheissu", "The Alchemy Index Fire", "The Alchemy Index Water",
+#                  "The Alchemy Index Air", "The Alchemy Index Earth", "Beggars",
+#                  "Major Minor", "To Be Everywhere And To Be Nowhere"))
+levels(as.factor(df$year))
+levels(year)
+levels(album)
+levels(df$album)
+
+# paste(levels(df$album), levels(year), sep = " ")
+# jar <- emotions_lyrics %>% 
+#   filter(sentiment != "positive" & sentiment != "negative") %>% 
+#   mutate(album_year = paste(levels(df$album), levels(year), sep = " "))
+
+emotions_lyrics %>% 
+  filter(sentiment != "positive" & sentiment != "negative") %>% 
+  ggplot(aes(album, percent/100, color = sentiment, group = sentiment)) +
+  geom_line(size = 1.5) +
+  geom_point(size = 3.5) +
+  scale_y_continuous(breaks = pretty_breaks(10), labels = percent_format()) +
+  xlab("Album") + ylab("Proportion of Emotion Words") +
+  ggtitle("Lyric Sentiments along Albums", subtitle = "From 2000-2016") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank())
+
+# 10.6.17: experiment with color schemes!
 
 # AI: Fire seems to have untrendly amount of FEAR: let's take a closer look!
 nrcfear <- get_sentiments("nrc") %>% 
