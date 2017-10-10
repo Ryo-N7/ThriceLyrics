@@ -1,14 +1,19 @@
+library(stringr)
+
 library(tidyverse)
 library(tidytext)
+library(lubridate)
 
 library(ggrepel)
 library(scales)
+library(gplots)
+library(gridExtra)
 
 library(wordcloud)
 
 # load dataset ------------------------------------------------------------
 
-df <- read.csv('thrice.df.csv', header=TRUE, stringsAsFactors = FALSE)
+df <- read.csv('thrice.df.csv', header = TRUE, stringsAsFactors = FALSE)
 
 df <- df %>% 
   mutate(album = factor(album, levels = unique(album)),
@@ -144,9 +149,25 @@ lyrics_sentiment %>%
 
 # needs some work........    why negative? look at HOW negative is defined.
 # negative talk but with positive action with negative undertones???? 
+
+
 # try with neutral as well...
-
-
+tidy_lyrics %>% 
+  group_by(album, year) %>% 
+  count(sentiment) %>% 
+  spread(key = sentiment, value = n) %>% 
+  replace_na(replace = list(negative = 0, neutral = 0, positive = 0)) %>%   # replace NAs with ZEROs!
+  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% # NO neutral in equation...
+  select(album, year, sentiment_ratio) %>% 
+  ggplot(aes(album, sentiment_ratio)) + 
+  geom_bar(stat = 'identity', fill = "darkgreen") +  # aes(fill = sentiment_ratio > 0)   irrelevant as ALL negative...
+  scale_fill_manual(guide = FALSE, values = c('#565b63', '#c40909')) +
+  scale_y_percent(limits = c(-0.15, 0.10), breaks = pretty_breaks(7)) +    # from hrbrthemes
+  theme_bw() +                     # from hrbrthemes
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 0.95)) +
+  ggtitle("Lyrics Sentiment Ratio", subtitle = "(Positive-Negative) / (Positive + Negative + Neutral)") +
+  labs(x = "Albums", y = "Sentiment Ratio (%)")
 
 
 
@@ -184,7 +205,6 @@ ggplot(top_sentiments, aes(reorder(word, num), num, fill = sentiment)) +
 # order by number of occurences
 # another way to visualize this is using a wordcloud!
 
-
 # Word cloud: Most common Pos-Neg words in Thrice lyrics ####
 library(wordcloud)
 
@@ -198,6 +218,7 @@ tidy_lyrics %>%
 # FALL appears most, dead, burn, fear, sick...
 
 # instead of reshape2::acast()   use a spread/gather??
+# comparisond.cloud() takes only matrix as input!
 
 
 # with nrc >>>>  Distribution of emotion words BOXPLOT: ####
@@ -208,11 +229,12 @@ emotions_lyrics <- wordToken2 %>%
   filter(!(sentiment == "negative" | sentiment == "positive")) %>% 
   group_by(album, sentiment) %>% 
   summarize(freq = n()) %>% 
-  mutate(percent = round(freq / sum(freq)*100)) %>% 
+  mutate(percent = freq / sum(freq)) %>%   # round()   *100
   select(-freq) %>% 
   ungroup() 
 
 emotion_box <- emotions_lyrics %>% 
+  mutate(percent = round(percent*100)) %>% 
   spread(sentiment, percent, fill = 0) %>% 
   ungroup()
 
@@ -230,7 +252,11 @@ emotion_box %>%
 # black bar = mean, white circles = outliers
 # n = 11 shows the total # of albums 
 # try with ggpubr?
-
+library(ggpubr)
+emotions_lyrics %>% 
+  ggboxplot(x = "sentiment", y = "percent", 
+            title = "EmoWOrd", palette = "jco", color = "sentiment", legend = "none") +
+  yscale("percent")
 
 
 ##### with bing >>>> only Pos-Neg-Neut BOXPLOT ####
@@ -281,7 +307,7 @@ posneg_lyrics <- wordToken2 %>%
   filter((sentiment == "negative" | sentiment == "positive")) %>%    # still filter non-POS/NEG for both
   group_by(album, sentiment) %>% 
   summarize(freq = n()) %>% 
-  mutate(percent = round(freq / sum(freq)*100)) %>% 
+  mutate(percent = round(freq / sum(freq)*100)) %>%   # round() and *100
   select(-freq) %>% 
   ungroup() 
 

@@ -239,7 +239,7 @@ two <- WordsPerSong %>%
         plot.title = element_text(hjust = 0.5))
 
 # compare accuracy of numWord method used...
-gridExtra::grid.arrange(one, two)
+grid.arrange(one, two)
 # crucial difference: WordsPerSong filter out instrumentals all together!
 # df includes instrumentals and has counted as 1
 
