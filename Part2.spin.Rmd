@@ -4,13 +4,17 @@ author: "Ryo Nakagawara"
 date: "Mon Oct 09 17:39:31 2017"
 ---
 
+Today in Part 2 we will look at the lyrical content of the band, Thrice. By dividing the lyrics of each song into a single word per row, we can take a much closer look at the components of the lyrical content on a song-level or at the album-level! 
+
+Let's get started!
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 ```
 
 As always let's load the various packages we are going to be using!
 
-```{r }
+```{r Packages}
 # Packages:
 library(tidyverse)  # for dplyr, tidyr, ggplot2
 library(tidytext)   # for separating text into words with unnest_tokens() function
@@ -20,10 +24,10 @@ library(gplots)     # for a certain type of plots not in ggplot2
 library(ggrepel)    # for making sure labels don't overlap
 library(scales)     # for fixing and tweaking the scales on graphs
 library(gridExtra)  # for arranging multiple plots into a single page
+
 ```
 
 ```{r include=FALSE}
-# load dataset ------------------------------------------------------------
 library(lubridate)
 
 df <- read.csv('thrice.df.csv', header=TRUE, stringsAsFactors = FALSE)
@@ -32,59 +36,61 @@ df <- df %>%
        mutate(album = factor(album, levels = unique(album)),
               length = ms(length),
               lengthS = seconds(length))
+
 ```
 
-- how accurate are the numLines and numWord counts?
-- comparison when unnest lyrics by line and word in later section of this article!
+First we have to load in the dataset that we finished tidying up in Part 1 (not shown here). 
 
-```{r}
-# Lyrics analysis ---------------------------------------------------------
+Let's finally take a look at the actual LYRICS of Thrice. 
 
-df <- df %>%
-  mutate(numLines = str_count(lyrics, '<br>') + 1,       # num of lines per song
-         numWord = str_count(lyrics, ' ') + 1)           # num of words per song
-     
+```{r lyrics string}
+
+df %>% 
+  select(lyrics) %>% 
+  substr(4, 116)
+
 ```
 
-- lyrics separated by line, "<br>" tag
-- uninterested in looking at line counts so split into lines on each <br> tag 
-- and then unnest each word from each "line" of lyrics
+Here we are looking at the first few lines of the first song in the first album. We can see that the lyrics are separated into lines by the <br> tag. Note that this is how the lines were separated from the source, [AZlyrics.com](https://www.azlyrics.com/t/thrice.html), and may not reflect how it is separated in the [album booklets](https://stitchesandgrooves.files.wordpress.com/2010/09/thrice-identity-crisis-insert.jpg) (as you can see, the first two lines shown above are actually one in the booklet).
 
-Using unnest_tokens() we need to:
-1.
-2.
-3.
-4.
-5.
+For the purposes of this analysis and the slight discrepancy in the lines we will first break up the `lyrics` column into lines to get rid of the `<br>` tags and then split `lyrics` so that the data is in the one-word-per-row format. This proces is called **tokenizing** and we use the `unnest_tokens()` function in the `tidytext` package for restructuring text datasets!
 
-```{r}
+Using `unnest_tokens()` we need to:
+- Enter in the `output`: the column to be created from tokenizing.
+- Enter in the `input`: the column that gets split or **tokenized**. 
+- Enter in the `token`: the unit for tokenizing. Default is by "words".
+- Enter in `to_lower`: to turn everything inside the specified column to lower case.   
+- Other inputs and options can be found by looking at the help page: `?unnest_tokens`.
+
+```{r unnest_tokens() wordToken}
+library(stringr)
+# use the stringr for str_split() function to split "lyrics" on the <br> tags!
+
 wordToken <-  df %>%
-  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%   
-  unnest_tokens(word, line) %>% 
-  mutate(wordCount = row_number()) %>%    # count of words in order of line, song, album
-  select(-numLines, -numWord)             
-  # take out numLines and numWord, can calculate independtly later
+  unnest_tokens(output = line, input = lyrics, token = str_split, pattern = ' <br>') %>%   
+  unnest_tokens(output = word, input = line, to_lower = TRUE) 
 
 glimpse(wordToken)
-# uncleaned unigrams containing all 'stop words' such as 'I', 'you', 'we', 'very', etc. etc.
+
 ```
+
+Now we have a dataset with all words separated by row.  
 
 Now let's count the how many times each word appears throughout the lyrics!
 
-```{r}
+```{r count word (wordToken)}
+
 countWord <- wordToken %>% count(word, sort=TRUE)
 countWord  %>% head(10)
 # 'the' is most common....
+
 ```
 
-What are stop words?
-Stop words are... and in the `tidytext` package they are populated from the "onix", "SMART", and "snowball" lexicons. For more information see [here]()!
+Just from looking at this it is clear that this isn't very informative about the content of lyrics. Words such as 'I', 'you', 'we', 'very', 'the' aren't very useful for analyzing the meaningfulness of our dataset. These very common set of words are called "stop words". For example:
 
-```{r}
-# Include stop_words ------------------------------------------------------
+```{r stop words}
 
 data("stop_words")
-stop_words         # data base of "stop words" to clean unigrams.
 
 set.seed(1)
 sample_stop <- stop_words %>% sample_n(10)
@@ -93,141 +99,162 @@ sample_stop
 
 ```
 
-You can see some of the "stop words" such as _there_, _keep_, and _everywhere_. 
+Using the built-in lexicons in the `tidytext` package ("onix", "SMART", and "snowball") we can create a new dataset where we filter out the "stop words"" from our `word` column in `wordToken`.  
 
-Now we can create a new dataset where we filter out the "stop words"" from our `word` column in `wordToken`. 
+This can be done by using `anti_join()` function which returns all rows from `x` (our original `wordtoken` dataset) where there are no matching values in `y` (`stop_words` dataset) on a variable with a common name across both datasets (`word`).
 
-This can be done by using anti_join() function which returns all rows from `x` (our original `wordtoken` dataset) where there are no matching values in `y` (`stop_words` dataset) on a variable with a common name across both datasets (`word`).
-
-to use the stop words in the stop_words dataset to filter out any matching words in the "word" column of our unnested dataset that we had just created.
-
-```{r}
+```{r wordToken2}
 
 wordToken2 <- wordToken %>% 
-  anti_join(stop_words) %>% # Take out rows of `words` in wordToken that appear in stop_words
-  select(-wordCount) %>%    # Won't need wordCount
-  arrange(ID)               # Or by track_num, essentially the same thing
+  anti_join(stop_words) %>% # Take out rows of `word` in wordToken that appear in stop_words
+  arrange(ID)               # Can also arrange by track_num, basically the same thing
 
-countWord2 <- wordToken2 %>% count(word, sort=TRUE)
+countWord2 <- wordToken2 %>% count(word, sort = TRUE)
 
 countWord2 %>% head(10)
 
 ```
 
-- with no stop words, 'eyes', ''ll', ''ve', and 'love', 'light' are most common
-- interesting in -light- of the fact that sentiment-score wise Thrice songs are overtly negative...
-- we'll see more of that in Part 3
+With "stop words" being filtered out of our dataset, 'eyes', 'love', 'light', 'blood', and 'life' are the most common! We can make much more inferences about the lyrics from those compared to 'I', 'the', 'and', and 'to'!
 
-```{r fig.height=5, fig.width=8, fig.align='center'}
+Now that we have one dataset with "stop words" and one without, we can compare them using a visualization to really emphasize the importance of filtering out "stop words" from any text data:
 
-# graph of top words (including stop words) ####
+```{r most common words comparison, fig.height=6, fig.width=8, fig.align='center'}
+
+# graph of most common words (including stop words) 
 one <- countWord %>% head(10) %>% 
   ggplot(aes(reorder(word, n), n)) + 
   geom_bar(stat = "identity", fill = "darkgreen", alpha = 0.75) +
-  xlab("Most common words") +
+  ggtitle("Comparison of 'Most Common Words'") +
+  xlab("With 'stop words'") +
+  scale_y_continuous(breaks = pretty_breaks(5)) +
   coord_flip() +
   theme_bw() +
-  theme(panel.grid.major.x = element_line(size = 1.25))
+  theme(panel.grid.major.x = element_line(size = 1.25),
+        axis.text.x = element_text(size = 12, face = "bold"),
+        plot.title = element_text(hjust = 0.5))
 
-# graph of top words (no stop words) ####
+# graph of most common words (no stop words) 
 two <- countWord2 %>% head(10) %>% 
   ggplot(aes(reorder(word, n), n)) + 
   geom_bar(stat = "identity", fill = "darkgreen", alpha = 0.75) +
-  xlab("Most common words") +
+  xlab("No 'stop words'") +
+  scale_y_continuous(breaks = pretty_breaks()) +
   coord_flip() +
   theme_bw() +
-  theme(panel.grid.major.x = element_line(size = 1.25))
+  theme(panel.grid.major.x = element_line(size = 1.25),
+        axis.text.x = element_text(size = 12, face = "bold"))
 
 grid.arrange(one, two)
 
 ```
 
-You can clearly see the difference like this!
+You can clearly see the difference between the datasets!
 
 The fact that the scales for `n` are very different between the plot with "stop words" and the one without shows how individually meaningless "stop words" such as "the", "and", "to", and "a" can really disrupt our analyses. The plot without "stop words" gives us a much clearer idea of the most meaningful and common words in Thrice's lyrics!
 
-One way to see this obscure>> disruption in action is by visualizing our data in a different way, using word clouds!
+Another way to see this obscure>> disruption in action is by visualizing our data in a different way, using word clouds!
 
-```{r fig.height=5, fig.width=8, fig.align='center'}
-
-# WORD CLOUD (comparison stop vs. no-stop)   ####
+```{r wordcloud - stop words, fig.height=5, fig.width=8, fig.align='center'}
 library(wordcloud)
 layout(matrix(c(1,2),1,2, byrow = TRUE))
 
 wordcloud(words = countWord$word, freq = countWord$n, random.order = FALSE, max.words = 300, 
           colors = brewer.pal(8, "Dark2"), use.r.layout = TRUE)
 
-# compare with wordcloud without stop_words!
 wordcloud(countWord2$word, countWord2$n, random.order = FALSE, max.words = 300,
           colors = brewer.pal(8, "Dark2"), use.r.layout = TRUE)
 
 ```
 
-With the word cloud visualization, we can really tell how the "stop words" in the left side obscures or "crowds out" all of the other more meaningful words due to the sheer amount of "the"s, "you"s, and "to"s that appear in the text.
+With the word cloud visualization, we can really tell how the "stop words" in the left side obscures or "crowds out" all of the other more meaningful words due to the sheer amount of "the"s, "you"s, and "to"s that appear in the lyrics text.
 
-Now that we've spread out each word into it's own row, let's take a closer look at our new datasets using our handy dplyr verbs!
+# Data exploration
 
-```{r}
-####    Explore dataset with dplyr verbs!   ####
+Now that we've spread out each word into it's own row, let's take a closer look at our new datasets!
+
+```{r total song wordToken/2}
+
+wordToken %>% select(title) %>% n_distinct()
+wordToken2 %>% select(title) %>% n_distinct()
+
+```
+
+Both `wordToken` and `wordToken2` give the number of songs at 100... but wait! In Part 1 we checked that there were a total of 103 songs, in these "tokenized" datasets the instrumental songs were not included simply because as they do not have any words, so there is no row for those instrumentals to exist in these datasets!
+
+```{r total songs df}
 
 df %>% summarise(num_songs = n()) # 103 songs in total, as each row = 1 song
 
 ```
 
-- several ways to do this as shown in Part 1 using n_distinct() on `title`...
-- the `n()` function specifically counts the # of obsv in the current group and can only be
-- used inside summarize(), mutate(), and filter()
+## Lyrics exploration
 
-- another example of n(), usage in conjunction with group_by()
-- songs per album (by order of # of songs desc) >>> did this in part 1
+Let's create a new dataset called `WordsPerSong` that contains information inside columns of the song title and the word counts.
 
-```{r}
+```{r Distr. Song by Word, fig.height=5, fig.width=8, fig.align='center'}
 
-df %>% group_by(album) %>% 
-  summarise(num_songs = n()) %>% 
-  arrange(desc(num_songs)) 
+# WordsPerSong
+WordsPerSong <- wordToken %>% 
+  group_by(title) %>% 
+  summarize(wordcounts = n()) %>%    # each row = 1 word
+  arrange(desc(wordcounts))
+
+WordsPerSong %>% 
+  ggplot(aes(x = wordcounts)) + 
+  geom_histogram(bins = 50, color = "white", fill = "darkgreen") +
+  geom_vline(xintercept = median(WordsPerSong$wordcounts), 
+             color = "red", linetype = "dashed", size = 1.25) +
+  scale_y_continuous(breaks = pretty_breaks(), expand = c(0, 0), limits = c(0, 12)) +
+  scale_x_continuous(breaks = pretty_breaks(10), expand = c(0, 0), limits = c(0, 410)) +
+  xlab('Total # of Words') +
+  ylab('# of Songs') +
+  labs(title = 'Distribution of Songs by Number of Words \n (Dashed red line: median)') + 
+  theme_bw() +
+  theme(panel.grid.minor = element_blank(), 
+        plot.title = element_text(hjust = 0.5))
 
 ```
 
-- words per song?
+The `wordToken` and `wordToken2` datasets unfortunately filters out the instrumentals all together, as the rows for the instrumentals are not populated by the `unnest_tokens()` function. Therefore, the median and mean values for word count will be slightly off in both the `wordToken` and `wordToken2` datasets.
 
-```{r}
+Count the number of songs for each album, we did this in Part 1 with `df`, this time let's use the `wordToken2` dataset that we just created:
 
-df %>% group_by(title) %>% 
-  select(title, album, numWord) %>% 
-  arrange(desc(numWord))    
+```{r Songs per album}
+
+wordToken2 %>% 
+  group_by(album) %>% 
+  summarize(num_songs = n_distinct(title)) %>% 
+  arrange(desc(num_songs))
 
 ```
 
-- The Weight has the most words, however the df dataset >>> (all incl. stop words)... also includes <br> though...
-- need to use wordToken instead of df or wordToken2 as stop_words should be included for sum
+Let's dig deeper, what about the number of words per song? We need to use `wordToken` instead of `df` or `wordToken2` as "stop_words"" should be included for the total word sum.
 
-```{r}
+```{r Words per song}
 
 wordToken %>% 
-  select(title, word) %>% 
-  group_by(title) %>% 
+  select(title, album, word) %>% 
+  group_by(title, album) %>% 
   summarize(num_word = n()) %>% 
-  arrange(desc(num_word))
+  arrange(desc(num_word)) %>%
+  head(10)
 
 ```
 
-More accurate measure of the total number of words per song! as counts each row which is divided into a single word from applying unnest_tokens() function to wordToken earlier!
+How about words per album? Let's also turn this info into a bar graph!
 
-How about words per album??
+```{r Words per album}
 
-- instrumentals still count the blank as 1, but insignificant.
-
-```{r}
-# numWord by album
 wordToken %>% 
   select(album, word) %>% 
   group_by(album) %>% 
   summarize(num_word = n()) %>% 
   arrange(desc(num_word)) %>% 
-  ggplot(aes(reorder(album, num_word), num_word)) + 
-  geom_bar(stat = "identity", fill = "darkgreen") + 
+  ggplot(aes(reorder(album, num_word), num_word, fill = num_word)) + 
+  geom_bar(stat = "identity") + 
   scale_y_continuous(expand = c(0.01, 0)) +
+  scale_fill_gradient(low = "#a1d99b", high = "#006d2c", guide = FALSE) +
   coord_flip() +
   theme_bw() +
   theme(axis.text.y = element_text(size = 8), axis.title.y = element_blank()) +
@@ -235,75 +262,86 @@ wordToken %>%
 
 ```
 
-- using count of "word" in unnested wordToken 
-- and original df "numWord" estimates similar enough...
+Individually, the Alchemy Index albums are the lowest as they each have only 6 songs each, if they were combined into their actual album sets (Volume 1: Fire & Water, Volume 2: Earth & Air), they would probably have more words than Identity Crisis.
 
+## Some more exploration with `dplyr` verbs!
 
-
-#######
-
+Use `filter()` to look at a specific album or specific song.
 ```{r}
-# random stuff
-# use str_*() functions to find and dig deeper into specific words!
 
-df %>% 
+wordToken %>% 
   filter(album == "Vheissu") %>% 
-  select(numWord) %>% 
-  sum()
+  summarize(num_word = n())
 
-sum(str_count(df$lyrics, "<br>"))   # 2562 breaks in total
-
-sum(str_count(df$lyrics, "light"))
-wordToken$word[wordToken$word == "light"]
-
-# counting occurences of "light" in each song 
-# this looks through the "lyrics" column which as an entire song's lyrics inside and counts how many times "light" appears in the text
-df %>% 
-  mutate(number = str_count(lyrics, pattern = "light")) %>% 
-  select(title, album, number) %>% 
-  arrange(desc(number)) %>% 
-  head(6)
-
-wordToken2 %>% 
-  select(word) %>% 
-  str_count("light") %>% 
-  sum()
-# total number of times "light" appears in lyrics of song, separated by each word or tokenized dataset ...(desc. order)
-
-# counting occurences of "light" in each song
-# count each specific appearance of "light" in "word" column
-# then sum up occurences by song ("title")
-wordToken2 %>% 
-  select(title, album, word) %>%
-  mutate(light = str_count(word, "light")) %>% 
-  group_by(title) %>% 
-  summarize(total_light = sum(light)) %>% 
-  arrange(desc(total_light)) %>% 
-  head(5)
-  
-
-
-df %>% 
-  filter(title == "The Weight") %>% 
-  select(album, title, numWord, numLines)
-# 421
 wordToken %>% 
   filter(title == "The Weight") %>% 
-  summarize(num_word = n())    # count rows, in this case: one row = one word
-# 383
+  summarize(num_word = n()) 
+  
+```
+
+The Weight was the first Thrice song I listened to in my friend's dorm room back in college, so it has quite a sentimental value to me!
+
+most common word in the lyrics for "The Weight"?
+
+```{r}
+
+wordToken2 %>% 
+  filter(title == "The Weight") %>% 
+  group_by(title) %>% 
+  count(word) %>% 
+  arrange(desc(n)) %>% 
+  head(5)
 
 ```
 
-######### 
+"won't", "leave", "love", "abandon", "burning" 
+>>> sounds like a very
 
-
+We can also combine `dplyr` with other functions... 
+- use str_*() functions to find and dig deeper into specific words!
+- Let's take a closer look at one of the most common words that we found, "light", and check the total number of times "light" appears in lyrics of song.
 
 ```{r}
-# most frequent word in each song ####
+
+wordToken2 %>% 
+  str_count("light") %>% 
+  sum()
+
+```
+We can see that across all the songs in Thrice's discography, the word "light" shows up 87 times!
+
+Now we use `mutate()` to create a new column that gives us the number of times the word "light" appears for each song.
+
+```{r}
+
+wordToken2 %>% 
+  select(title, album, word) %>%
+  mutate(light = str_count(word, "light")) %>% 
+  group_by(title, album) %>% 
+  summarize(total_light = sum(light)) %>% 
+  arrange(desc(total_light)) %>% 
+  head(5)
+
+```
+
+```{r}
+# proportion of "light" in all words
+wordToken %>% 
+  select(title, album, word) %>% 
+  mutate(num_word = n()) %>% 
+  mutate(prop_light = (sum(str_count("light")) / num_word))
+
+```
+
+-- most frequent word in each song
+
+```{r}
+
 wordToken2 %>% 
   group_by(title) %>% 
   count(word) %>% 
-  arrange(desc(n))
+  arrange(desc(n)) %>% 
+  head(10)
 
 ```
 
@@ -311,87 +349,28 @@ wordToken2 %>%
 - "image" and "invisible" in "Image of the Invisible" >>> given as shouted out during the chorus numerous
 - times in the song... To consider: skewed toward phrases repeated in chorus!
 
-
-```{r fig.height=5, fig.width=8, fig.align='center'}
-# WordsPerNoStop
-df %>%
-  mutate(lyrics = str_replace_all(lyrics, '\'', ' ')) %>%
-  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>% 
-  unnest_tokens(word, line) %>%
-  anti_join(stop_words) %>%           # filter stop words
-  group_by(title) %>% 
-  summarize(wordcounts = n()) %>% 
-  arrange(desc(wordcounts))
-```
-
-```{r fig.height=5, fig.width=8, fig.align='center'}
-# Distribution of Songs by # of Words     
-medianWord <- median(df$numWord)
-
-one <- df %>% 
-  ggplot(., aes(x = numWord)) +
-  geom_histogram(binwidth = 10,
-                 color = 'white',
-                 fill = 'darkgreen') +
-  geom_vline(aes(xintercept = medianWord), colour = "red", linetype = "dashed", size = 1.25) +
-  scale_y_continuous(breaks = pretty_breaks(), expand = c(0, 0), limits = c(0, 12)) +
-  scale_x_continuous(breaks = pretty_breaks(), expand = c(0, 0)) +
-  xlab('Total # of Words') +
-  ylab('# of Songs') +
-  labs(title = 'Distribution of Songs by Number of Words (Est. numWord measure)', 
-       subtitle = 'Dashed red line: median') + 
-  theme_bw() +
-  theme(panel.grid.minor = element_blank(), 
-        plot.title = element_text(hjust = 0.5))
-```
+Now let's take this to the album-level!
 
 
-```{r fig.height=5, fig.width=8, fig.align='center'}
-# same as above^ but should be more accurate?
+#################     NESTED MOST COMMON WORDS PER ALBUM
 
-# WordsPerSong
-WordsPerSong <- wordToken %>%   # NOT filter stop words (included in the lyrics for the total count)
-  group_by(title) %>% 
-  summarize(wordcounts = n()) %>%    # each row = 1 word
-  arrange(desc(wordcounts))
-
-# Histogram of Word counts (per Song)   >>>> same as in uni-bi-tri section...
-two <- WordsPerSong %>% 
-  ggplot(aes(x = wordcounts)) + 
-  geom_histogram(binwidth = 10, color = "white", fill = "darkgreen") +
-  geom_vline(xintercept = median(WordsPerSong$wordcounts), color = "red", linetype = "dashed", size = 1.25) +
-  scale_y_continuous(breaks = pretty_breaks(), expand = c(0, 0), limits = c(0, 12)) +
-  scale_x_continuous(breaks = pretty_breaks(), expand = c(0, 0)) +
-  xlab('Total # of Words') +
-  ylab('# of Songs') +
-  labs(title = 'Distribution of Songs by Number of Words (Count of each word)', 
-       subtitle = 'Dashed red line: median') + 
-  theme_bw() +
-  theme(panel.grid.minor = element_blank(), 
-        plot.title = element_text(hjust = 0.5))
-
-# compare accuracy of numWord method used...
-grid.arrange(one, two)
-# crucial difference: WordsPerSong filter out instrumentals all together!
-# df includes instrumentals and has counted as 1
-```
-
-
-
-
+Create a "nested" dataset of most common words for EACH album
+>>> basically, the "data" column will contain the specific most commond words for a certain album "row".
+- nested on albums!
 
 ```{r}
 # most frequent unigrams per album: ####
-# nested on albums!
 
 word_count_nested <- wordToken2 %>% 
   group_by(album, word) %>% 
   summarize(count = n()) %>% 
-  top_n(10) %>% 
+  top_n(5) %>% 
   arrange(album, desc(count)) %>% 
   nest() 
 
 ```
+
+Let's take a look at the individual elements of our new "data" column!
 
 ```{r}
 
@@ -401,27 +380,37 @@ word_count_nested$data[[5]]
 
 ```
 
+The most common word data for the first list (Album = Identity Crisis) and the fifth list (Album = AI: Fire)
+
+The only problem with the top_n() function is that if there are ties than the total number will be bigger than `n`.
+
+Now we use the data to create a plot for each album using the `map2()` function which allows us to iteratively create a plot from each specific `data` column from each `album` row and stores the plot information in its own column `plot`, just like we did in `data`.
+
 ```{r}
 
 word_count_nested <- word_count_nested %>% 
   mutate(plot = map2(data, album, 
-                     ~ggplot(data = .x) +
+                     ~ggplot(data = .x, aes(fill = count)) +
            geom_bar(aes(reorder(word, count), count), 
-                    stat = "identity", fill = "darkgreen", width = 0.65) +
+                    stat = "identity", width = 0.65) +
            scale_y_continuous(breaks = pretty_breaks(10), limits = c(0, 22), expand = c(0, 0)) +
+           scale_fill_gradient(low = "#a1d99b", high = "#006d2c", guide = FALSE) +
            ggtitle(.y) +
            labs(x = NULL, y = NULL) +
            coord_flip() +  
            theme_bw() +
            theme(axis.text.y = element_text(size = 7),
-                 title = element_text(size = 7))
+                 title = element_text(size = 10))
            ))
 
-glimpse(word_count_nested)
+str(word_count_nested, list.len = 3, max.level = 2)
 
 ```
 
-- can now see that column "data" is series of lists that holds the top 10 words for each album (row)
+- the overall `word_count_nested` dataframe consists of 3 columns of album, data, and plot by 11 rows, one for each album.
+
+- can now see that column "data" is series of lists that holds the top 10 or so words for each album (row)
+>>> Ex. the first element is a data frame of 8 observations of 2 variables, specifically the 8 most common words in the first album as rows with word and count as the 2 column variables.
 - "plot" column is a series of lists that holds the plot data for each album (row)
 
 - by selecting the specific element within the list, we can extract the plot for a certain album
@@ -454,10 +443,23 @@ word_count_nested %>%
 - even then data will be hard to compare side-by-side.
 - if facetting done the other way around with each album as a row stacked on top of another, still difficult to see the differences in the heights of the bar counts
 
-What can we do?
+### What can we do?
 One way to solve our problem is to code in a way that each plot for each album is printed out individually and then to arrange all those individual plots into one page.
 This will solve the problem with facetting this group of plots won't be forcibly squished together into one gigantic plot.
+
+One way ti to use 
+
+- base R method with do.call() function to iterate the `grid.arrange()` function for each `plot` column in word_count_nested.
+
+```{r fig.height=5, fig.width=8, fig.align='center'}
+
+do.call(grid.arrange, c(word_count_nested$plot, ncol = 3))
+
+```
+
+Another way is to first...
 - save all plots in as one list
+- to get an output slightly different from the above, let's just make a subset of the 1st to 4th plots (Albums: Identity Crisis to The Artist In The Ambulance).
 
 ```{r}
 
@@ -467,39 +469,28 @@ nested_plots <- word_count_nested$plot[1:4]
 
 ```{r}
 
-glimpse(nested_plots)[[1]]
 str(nested_plots, list.len = 2, max.level = 2)
 
 ```
 
-```{r}
+-- A list with a length 4 for each of the 4 albums that we subsetted here.
+-- Within each album list we have another set of lists for the respective album's `data` and `plot` elements!
 
-do.call(grid.arrange, c(nested_plots, ncol = 2))
-
-```
-
-```{r fig.height=5, fig.width=8, fig.align='center'}
-
-# base R method with do.call() function:
-do.call(grid.arrange, c(word_count_nested$plot, ncol = 3))
-
-```
-
-
+- works very easily with cowplot::plot_grid() function!
+- call list of ggplots (per album) with plotlist = __ then specify # of columns/rows/etc...
 
 ```{r fig.height=5, fig.width=8, fig.align='center'}
 
-# works very easily with cowplot::plot_grid() function!
-# call list of ggplots (per album) with plotlist = __ then specify # of columns/rows/etc...
 library(cowplot)
-plot_grid(plotlist = nested_plots, ncol = 3)
+plot_grid(plotlist = nested_plots, ncol = 2)
 
 ```
 
+- save plot of most frequent word (for each album) individually now! ####
+- apply the function ggsave() so that it iteratively saves the plot for each album!
+
 ```{r}
 
-# save plot of most frequent word (for each album) individually now! ####
-# apply the function ggsave() so that it iteratively saves the plot for each album!
 map2(paste0(word_count_nested$album, ".pdf"), word_count_nested$plot, ggsave)
 
 ```

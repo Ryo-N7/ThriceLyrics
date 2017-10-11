@@ -290,6 +290,9 @@ word_count_nested %>%
 # save all plots in as one list
 nested_plots <- word_count_nested$plot
 
+nested_plots <- word_count_nested$plot[c(1,3,4)] # save 1, 3, 4th plots
+nested_plots <- word_count_nested$plot[1:4]      # save 1-4th plots
+
 glimpse(nested_plots)[[1]]
 str(nested_plots, list.len = 2, max.level = 2)
 
