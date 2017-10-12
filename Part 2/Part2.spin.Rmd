@@ -2,9 +2,12 @@
 title: "Part2.r"
 author: "Ryo Nakagawara"
 date: "Mon Oct 09 17:39:31 2017"
+output: 
+  md_document: 
+    variant: markdown_github
 ---
 
-Today in Part 2 we will look at the lyrical content of the band, Thrice. By dividing the lyrics of each song into a single word per row, we can take a much closer look at the components of the lyrical content on a song-level or at the album-level! 
+In Part 2 we will look at the lyrical content of the band, Thrice. By dividing the lyrics of each song into a single word per row, we can take a much closer look at the components of the lyrical content at various levels! 
 
 Let's get started!
 
@@ -82,7 +85,6 @@ Now let's count the how many times each word appears throughout the lyrics!
 
 countWord <- wordToken %>% count(word, sort=TRUE)
 countWord  %>% head(10)
-# 'the' is most common....
 
 ```
 
@@ -99,7 +101,7 @@ sample_stop
 
 ```
 
-Using the built-in lexicons in the `tidytext` package ("onix", "SMART", and "snowball") we can create a new dataset where we filter out the "stop words"" from our `word` column in `wordToken`.  
+Using the built-in lexicons ("onix", "SMART", and "snowball") in the `tidytext` package we can create a new dataset where we filter out the "stop words"" from our `word` column in `wordToken`.  
 
 This can be done by using `anti_join()` function which returns all rows from `x` (our original `wordtoken` dataset) where there are no matching values in `y` (`stop_words` dataset) on a variable with a common name across both datasets (`word`).
 
@@ -169,7 +171,7 @@ wordcloud(countWord2$word, countWord2$n, random.order = FALSE, max.words = 300,
 
 With the word cloud visualization, we can really tell how the "stop words" in the left side obscures or "crowds out" all of the other more meaningful words due to the sheer amount of "the"s, "you"s, and "to"s that appear in the lyrics text.
 
-# Data exploration
+## Data exploration
 
 Now that we've spread out each word into it's own row, let's take a closer look at our new datasets!
 
@@ -188,9 +190,27 @@ df %>% summarise(num_songs = n()) # 103 songs in total, as each row = 1 song
 
 ```
 
+Let's look at the exact number of UNIQUE words in Thrice's lyrics. As almost 100% of Thrice's songs are written by Dustin Kensrue, we'll be able to see just how extensive his vocabulary is!
+
+```{r all unique}
+
+wordToken %>% select(word) %>% n_distinct()
+
+```
+
+2480! Not bad, let's take out all the "stop words" though...
+
+```{r unique no stop}
+
+wordToken2 %>% select(word) %>% n_distinct()
+
+```
+
+2095 unique and non-"stop word" words in Thrice's lyrics! Which also means in `wordToken2` we took out around 400 distinct "stop words" out from `wordToken`.
+
 ## Lyrics exploration
 
-Let's create a new dataset called `WordsPerSong` that contains information inside columns of the song title and the word counts.
+Now let's create a new dataset called `WordsPerSong` to create a histogram of the distribution of songs by the number of words (including "stop words"). 
 
 ```{r Distr. Song by Word, fig.height=5, fig.width=8, fig.align='center'}
 
@@ -267,7 +287,8 @@ Individually, the Alchemy Index albums are the lowest as they each have only 6 s
 ## Some more exploration with `dplyr` verbs!
 
 Use `filter()` to look at a specific album or specific song.
-```{r}
+
+```{r summarize # of words in specific album and song}
 
 wordToken %>% 
   filter(album == "Vheissu") %>% 
@@ -279,11 +300,9 @@ wordToken %>%
   
 ```
 
-The Weight was the first Thrice song I listened to in my friend's dorm room back in college, so it has quite a sentimental value to me!
+"The Weight"" was the first Thrice song I listened to in my friend's dorm room back in college, so it has quite a sentimental value to me!So let's look at the most common words in the lyrics for "The Weight"!
 
-most common word in the lyrics for "The Weight"?
-
-```{r}
+```{r most common word in "The Weight"}
 
 wordToken2 %>% 
   filter(title == "The Weight") %>% 
@@ -294,25 +313,23 @@ wordToken2 %>%
 
 ```
 
-"won't", "leave", "love", "abandon", "burning" 
->>> sounds like a very
+From the top 5 common words, "won't", "leave", "love", "abandon", "burning", it is clear that this song is about love and commitment. Indeed, the "won't" in this song is only used in a positive sense, such as "I won't abandon you" and "I won't leave you high and dry" reinforcing Dustin's message that love is a huge commitment; the title of the song, "The Weight", actually refers to the gravity and seriousness of that commitment. 
 
-We can also combine `dplyr` with other functions... 
-- use str_*() functions to find and dig deeper into specific words!
-- Let's take a closer look at one of the most common words that we found, "light", and check the total number of times "light" appears in lyrics of song.
+We can also combine `dplyr` with other functions, such as various `stringr` functions to find specific words! Let's take a closer look at one of the most common words that we found, "light", and check the total number of times "light" appears in lyrics of song.
 
-```{r}
+```{r sum of "light" in lyrics }
 
 wordToken2 %>% 
   str_count("light") %>% 
   sum()
 
 ```
+
 We can see that across all the songs in Thrice's discography, the word "light" shows up 87 times!
 
 Now we use `mutate()` to create a new column that gives us the number of times the word "light" appears for each song.
 
-```{r}
+```{r light appearance in each song}
 
 wordToken2 %>% 
   select(title, album, word) %>%
@@ -324,18 +341,35 @@ wordToken2 %>%
 
 ```
 
-```{r}
-# proportion of "light" in all words
+Let's look at the proportion of "light" out of all the words in Thrice's lyrics!
+
+```{r proportion of "light" in lyrics}
+
 wordToken %>% 
   select(title, album, word) %>% 
-  mutate(num_word = n()) %>% 
-  mutate(prop_light = (sum(str_count("light")) / num_word))
+  summarize(light = str_count(word, "light") %>% sum(),
+            num_word = n(), 
+            prop_light = (light / num_word))
 
 ```
 
--- most frequent word in each song
+Even one of the most common words, "light", accounts for only 0.46% of all the words in the lyrics of Thrice's songs!
 
-```{r}
+What about the most frequent word in a specific song (with and without "stop words")?
+
+```{r most common word/song}
+
+wordToken %>% 
+  group_by(title) %>% 
+  count(word) %>% 
+  arrange(desc(n)) %>% 
+  head(10)
+
+```
+
+The most common words seem to mainly be personal nouns along with "the". 
+
+```{r most common word/song no stop words}
 
 wordToken2 %>% 
   group_by(title) %>% 
@@ -345,20 +379,17 @@ wordToken2 %>%
 
 ```
 
-- "I'll" in Black Honey >>> song about
-- "image" and "invisible" in "Image of the Invisible" >>> given as shouted out during the chorus numerous
-- times in the song... To consider: skewed toward phrases repeated in chorus!
+"I'll" and "I" appears the most in both lists from the song, Black Honey, a very political song that is an allegory for the meddling foreign policy of the United States. The constant appearance of "I", "I'll", "I've" throughout the song highlights the very selfish, arrogant, and oblivious nature of the protagonist, who is aggressively seeking to obtain the "black honey", referring to the petroleum of Middle Eastern countries, from the bees and hornets, whom symbolize the inhabitants of the Middle East countries that are trampled in the protagonist's pursuit. It's a really great song (have a listen [here](https://www.youtube.com/watch?v=C9GTEsNf_GU)), my second favorite off the album after "Hurricane".
 
-Now let's take this to the album-level!
+The appearance of "image" and "invisible" from the song "Image of the Invisible" is more straightforward as it is shouted out during the chorus repeatedly. Most of that song is Thrice screaming that title phrase out actually!
 
+From looking at this data, a thing to consider is that the data can be skewed toward repeated phrases in a song, like the chorus! From other lyrics analysis I've seen, people have tried to find lyrics that don't have repeated choruses, however, most lyrics websites aren't well moderated or have a ton of different people with different input styles posting lyrics of different songs for a single artist so it can be a bit tricky in this regard.
 
-#################     NESTED MOST COMMON WORDS PER ALBUM
+## Creating nested dataframes for storing plots for each album.
 
-Create a "nested" dataset of most common words for EACH album
->>> basically, the "data" column will contain the specific most commond words for a certain album "row".
-- nested on albums!
+Now let's try to create plots for the most frequent words for each album. To do this we need to create a "nested" dataset. Basically, the "data" column will contain the specific list of the most common words for each individual album (row).
 
-```{r}
+```{r nest on albums}
 # most frequent unigrams per album: ####
 
 word_count_nested <- wordToken2 %>% 
@@ -372,7 +403,7 @@ word_count_nested <- wordToken2 %>%
 
 Let's take a look at the individual elements of our new "data" column!
 
-```{r}
+```{r nested data}
 
 word_count_nested$data[[1]]
 
@@ -386,7 +417,7 @@ The only problem with the top_n() function is that if there are ties than the to
 
 Now we use the data to create a plot for each album using the `map2()` function which allows us to iteratively create a plot from each specific `data` column from each `album` row and stores the plot information in its own column `plot`, just like we did in `data`.
 
-```{r}
+```{r create nested plot column}
 
 word_count_nested <- word_count_nested %>% 
   mutate(plot = map2(data, album, 
@@ -407,15 +438,11 @@ str(word_count_nested, list.len = 3, max.level = 2)
 
 ```
 
-- the overall `word_count_nested` dataframe consists of 3 columns of album, data, and plot by 11 rows, one for each album.
+On inspection, the `word_count_nested` dataframe consists of 3 columns of `album`, `data`, and `plot` by 11 rows, one row for each album. The column `data` is a series of lists that holds the top 10 or so words for each album (row). For example, the first element of `data` is a data frame of 8 observations of 2 variables, specifically the 8 most common words in the first album as rows with word and count as the 2 column variables. The next column, `plot`, is a series of lists that holds the plot information (the ggplot2 code we added into the data frame with `mutate()`) for each album (row).
 
-- can now see that column "data" is series of lists that holds the top 10 or so words for each album (row)
->>> Ex. the first element is a data frame of 8 observations of 2 variables, specifically the 8 most common words in the first album as rows with word and count as the 2 column variables.
-- "plot" column is a series of lists that holds the plot data for each album (row)
+By selecting the specific element within the list, we can extract the plot for a certain album
 
-- by selecting the specific element within the list, we can extract the plot for a certain album
-
-```{r fig.height=5, fig.width=8, fig.align='center'}
+```{r nested plot examples, fig.height=5, fig.width=8, fig.align='center'}
 
 word_count_nested$plot[[2]]
 
@@ -427,9 +454,9 @@ With everything organized in a "tidy" way, let's try to plot for ALL of the albu
 
 First let's try with something we used in Part 1, facetting!
 
-Before we start plotting we need to "unnest" the data from >>>
+Before we start plotting we need to "unnest" the information inside the `data` column to create our facetted plot. Then we can use our regular `ggplot` commands to create our facetted plot along with `facet_grid()`. 
 
-```{r fig.height=5, fig.width=8, fig.align='center'}
+```{r facetting attempt, fig.height=5, fig.width=8, fig.align='center'}
 
 word_count_nested %>% 
   unnest(data) %>%                   # take data out from list
@@ -439,66 +466,59 @@ word_count_nested %>%
 
 ```
 
-- can see that this won't work with facetting as we face the problem of there not being enough space for all the albums to fit in a single row.
-- even then data will be hard to compare side-by-side.
-- if facetting done the other way around with each album as a row stacked on top of another, still difficult to see the differences in the heights of the bar counts
+Regardless of the fact that there isn't much space, the data isn't clearly presented in this way. One way to solve our problem is to code in a way that each plot for each album is printed out individually and then to arrange all those individual plots onto one page. This way the group of plots won't be forcibly squished together into one gigantic plot.
 
-### What can we do?
-One way to solve our problem is to code in a way that each plot for each album is printed out individually and then to arrange all those individual plots into one page.
-This will solve the problem with facetting this group of plots won't be forcibly squished together into one gigantic plot.
+One way is to use a base R method with the `do.call()` function. This will iterate the `grid.arrange()` function for the ggplot data stored in `plot` in every row/album.
 
-One way ti to use 
-
-- base R method with do.call() function to iterate the `grid.arrange()` function for each `plot` column in word_count_nested.
-
-```{r fig.height=5, fig.width=8, fig.align='center'}
+```{r do.call for all plots, fig.height=5, fig.width=8, fig.align='center'}
 
 do.call(grid.arrange, c(word_count_nested$plot, ncol = 3))
 
 ```
 
-Another way is to first...
-- save all plots in as one list
-- to get an output slightly different from the above, let's just make a subset of the 1st to 4th plots (Albums: Identity Crisis to The Artist In The Ambulance).
+Another way is to save all the plotting data in the `plot` column into a single list... To get an output slightly different from the above, for this list of plots let's make a subset of the 1st to 4th plots (Albums: Identity Crisis to The Artist In The Ambulance) instead.
 
-```{r}
+```{r subset first 4 plots}
 
 nested_plots <- word_count_nested$plot[1:4]
 
 ```
 
-```{r}
+```{r examine subset}
 
 str(nested_plots, list.len = 2, max.level = 2)
 
 ```
 
--- A list with a length 4 for each of the 4 albums that we subsetted here.
--- Within each album list we have another set of lists for the respective album's `data` and `plot` elements!
+From inspecting the list with `str()`, we can see that this is a list with a length four, one list for each of the four albums that we subsetted. Within each album's list we have another set of lists for the respective `data` and `plot` elements! Using this list of lists we can pass it through the `plot_grid()` function from the `cowplot` package to arrange multiple plots on a single page. In this function we basically call our list of plots with `plotlist = ` and then we can also specify the number of columns, rows, label size, etc.
 
-- works very easily with cowplot::plot_grid() function!
-- call list of ggplots (per album) with plotlist = __ then specify # of columns/rows/etc...
-
-```{r fig.height=5, fig.width=8, fig.align='center'}
-
+```{r cowplot for arrange multiple plots, fig.height=5, fig.width=8, fig.align='center'}
 library(cowplot)
+
 plot_grid(plotlist = nested_plots, ncol = 2)
 
 ```
 
-- save plot of most frequent word (for each album) individually now! ####
-- apply the function ggsave() so that it iteratively saves the plot for each album!
+We can now view all the plots (or a subset of them) on a single page!
 
-```{r}
+By using the `map2()` function from purrr package, this time we apply the function `ggsave()` so that it iteratively saves the plot for each album!
 
-map2(paste0(word_count_nested$album, ".pdf"), word_count_nested$plot, ggsave)
+```{r save individual plots!}
+
+# map2(paste0(word_count_nested$album, ".pdf"), word_count_nested$plot, ggsave)
 
 ```
 
-In Part 3 we will look more closely at the different sentiments of the words in Thrice's lyrics!
--
--
--
--
+We can check that the code ran properly (without having to manually look into your working directory) with the `file.exists()` function.
 
+```{r}
+
+file.exists(paste0(word_count_nested$album, ".pdf"))
+
+```
+
+With all those plots properly saved into separate files we can now share and send them to other people!
+
+Today we did divided up the lyrics into singular words and analyzed it at various levels and through various filters. 
+In Part 3 we will look more closely at the different sentiments/emotions that are expressed in Thrice's lyrics!
 
