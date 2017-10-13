@@ -11,7 +11,7 @@ library(gridExtra)
 
 # load dataset ------------------------------------------------------------
 
-df <- read.csv('thrice.df.csv', header=TRUE, stringsAsFactors = FALSE)
+df <- read.csv('thrice.df.csv', header = TRUE, stringsAsFactors = FALSE)
 
 df <- df %>% 
   mutate(album = factor(album, levels = unique(album)),
@@ -25,22 +25,13 @@ glimpse(df)
 
 # Lyrics analysis ---------------------------------------------------------
 
-df <- df %>%
-  mutate(numLines = str_count(lyrics, '<br>') + 1) %>%      # num of lines per song
-  mutate(numWord = str_count(lyrics, ' ') + 1)              # num of words per song
-
-# how accurate are the numLines and numWord counts?
-# comparison when unnest lyrics by line and word in later section of this article!
-
 # lyrics separated by line, "<br>" tag
 # uninterested in looking at line counts so split into lines on each <br> tag 
 # and then unnest each word from each "line" of lyrics
 
 wordToken <-  df %>%
   unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%   # take out <br> tags
-  unnest_tokens(word, line) %>% 
-  mutate(wordCount = row_number()) %>%    # count of words in order of line, song, album
-  select(-numLines, -numWord)             # take out numLines and numWord, can calculate independtly later
+  unnest_tokens(word, line, to_lower = TRUE) 
 
 glimpse(wordToken)
 # uncleaned unigrams containing all 'stop words' such as 'I', 'you', 'we', 'very', etc. etc.
@@ -59,11 +50,12 @@ stop_words %>% head(5)
 
 wordToken2 <- wordToken %>% 
   anti_join(stop_words) %>%                 
-  # use anti-join to take out words in wordToken that appear in stop_words
-  select(-wordCount) %>%     # won't need wordCount
   arrange(ID)  # or track_num essentially same thing
 
 countWord2 <- wordToken2 %>% count(word, sort=TRUE)
+
+countWord2 %>% head(10)
+
 
 
 
