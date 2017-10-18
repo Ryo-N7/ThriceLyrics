@@ -553,18 +553,74 @@ Skewed toward the smaller albums? AI each has 6 songs each compared to ~12 for o
 
 biGrams_tfidf %>% 
   group_by(album) %>% 
-  top_n(3) %>% 
+  top_n(5) %>% 
   ungroup() %>% 
   ggplot(aes(reorder(ngram, tf_idf), tf_idf, fill = album)) + 
   geom_col(show.legend = FALSE) +
   labs(x = NULL, y = "tf-idf") +
   facet_wrap(~album, ncol = 3, scales = "free") +
-  coord_flip()
+  coord_flip() +
+  scale_fill_brewer(type = "qual", palette = "Paired")
+
 
 ```
 
 
 #### Negation words! How much does it screw up the sentiment scores?
+
+
+```{r}
+
+negation_words <- c("not", "no", "never", "without")
+
+negated_bigrams <- biGrams_sep %>% 
+  filter(word1 %in% negation_words) %>% 
+  inner_join(get_sentiments("afinn"), by = c(word2 = "word")) %>% 
+  count(word1, word2, score, sort = TRUE) %>% 
+  ungroup()
+
+negated_bigrams %>% head(10)
+
+```
+
+"not  alone", "no  evil", "not  afraid"  are actually very positive but not counted as such.
+
+Let's visualize this to get a clear idea of the miscalculation!
+
+```{r}
+
+negated_bigrams %>% 
+  mutate(contribution = n * score,
+         word2 = reorder(paste(word2, word1, sep = "__"), contribution)) %>% 
+  group_by(word1) %>% 
+  top_n(10, abs(contribution)) %>% 
+  ggplot(aes(word2, contribution, fill = n * score > 0)) +
+  facet_wrap(~ word1, scales = "free") +
+  geom_col(show.legend = FALSE) +
+  scale_x_discrete(labels = function(x) gsub("__.+$", "", x)) +
+  xlab("Word preceded by negation term") +
+  ylab("sentiment score * number of occurences") + 
+  coord_flip()
+
+```
+
+
+how about with the BING lexicon we've been using to sum up Positive/Negative?
+
+```{r}
+
+negation_words <- c("not", "no", "never", "without")
+
+negated_bigrams <- biGrams_sep %>% 
+  filter(word1 %in% negation_words) %>% 
+  inner_join(get_sentiments("bing"), by = c(word2 = "word")) %>% 
+  count(word1, word2, sentiment, sort = TRUE) %>% 
+  ungroup()
+
+negated_bigrams %>% head(10)
+
+```
+
 
 
 
