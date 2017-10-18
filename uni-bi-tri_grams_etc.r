@@ -79,9 +79,29 @@ biGrams <-  nGram %>%
   unnest_tokens(ngram, text, token = "ngrams", n = 2) 
 
 biGrams <- df %>% 
+  mutate(lyrics = iconv(lyrics, to = 'latin1')) %>% 
   unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%   # take out <br> tags
   unnest_tokens(ngram, line, token = "ngrams", n = 2)
 
+biGrams <- df %>% 
+  mutate(lyrics = iconv(lyrics, to = 'latin1')) %>% 
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%   # take out <br> tags
+  unnest_tokens(ngram, line, token = "ngrams", n = 2)
+
+
+separate(c("word1", "word2", sep = " "))
+
+biGrams <- df %>% 
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%
+  unnest_tokens(ngram, line, token = "regex", pattern = "[^[:ascii:]]")
+
+df %>% 
+  str_replace_all(pattern = "'", replacement = "\'") 
+
+
+
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%
+  unnest_tokens(ngram, line, token = "ngram", n = 2)
 
 biGramsCleaned <-  nGramCleaned %>% 
   unnest_tokens(ngram, text, token = "ngrams", n = 2) %>%
@@ -102,9 +122,32 @@ biGramsSep <- biGrams %>%
 biGramsSep <- biGramsCleaned %>% 
   separate(ngram, c("word1", "word2", sep = " "))
 
+
 biGramsSep <- biGrams %>% 
-  select(title, album, ngram) %>% 
-  separate(ngram, c("word1", "word2", sep = " "))  # doesnt properly parse ' s...
+  separate(ngram, c("word1", "word2", sep = " "), extra = "drop")  # doesnt properly parse ' s...
+
+# SALAHACKBAR
+biGramsSep <- biGrams %>% 
+  separate(ngram, c("word1", "word2"), sep = "[^-'a-zA-Z]")
+
+biGramsSep_attempt2 <- biGrams %>% 
+  separate(ngram, c("word1", "word2"), sep = "[^-'\\w]")   # SOLVED IT NOW MOTHERCUKER HAHAHAAHAHAHAHAA
+
+"'(.*)\\s+([^ ]+)$'"
+
+"[^-'a-zA-Z]"   # <<<<<<<<<<<<< FOR APOSTROPHES!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+biGramsSep <- biGrams %>% 
+  mutate(iconv(x = ngram, to = 'latin1')) %>% 
+  separate(ngram, c("word1", "word2", sep = " "))
+
+
+biGrams$ngram %>% str_extract("[[:alpha:]]*\\'.*")
+
+
+
+
+
 
 
 # TRI
