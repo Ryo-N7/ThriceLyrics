@@ -52,158 +52,55 @@ Let's get started!
 Using the wordToken2 dataset that we created in __Part 2__ we will filter out any numbers in our data set and then use a `left_join()` function to 
 
 
-```{r}
+```{r tidy_lyrics and emotions_lyrics_bing}
 # Sentiment analysis ------------------------------------------------------
 
 tidy_lyrics <- wordToken2 %>% 
+  select(-writers, -length, -lengthS)
+
+emotions_lyrics_bing <- tidy_lyrics %>% 
   filter(!grepl('[0-9]', word)) %>% 
   left_join(get_sentiments("bing"), by = "word") %>% 
   group_by(album) %>%   
-  mutate(linenumber = row_number(),
-         sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   # add in neutral
+  mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   # add in neutral
   ungroup()
 
 ```
 
-
-
-```{r}
-# total sentiment of every word (minus stop words) from all songs
-tidy_lyrics %>% 
+```{r count all sentiments BING}
+emotions_lyrics_bing %>% 
   count(sentiment)
 
 ```
 
 Positive: 423, Negative: 912, Neutral: 5095
 
-# Net sentiment ratio for each song 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+MOST COMMON POS/NEG + WORDCLOUD     BING
 
-```{r}
+DISTRIBUTION OF EMOTION WORDS NRC
 
-tidy_lyrics %>% 
-  group_by(title, album) %>% 
-  count(sentiment) %>% 
-  spread(key = sentiment, value = n) %>% 
-  mutate(sentiment_ratio = (positive - negative) / (positive + negative)) %>% 
-  head(9)
+NET SENTIMENT RATIO      BING
 
-tidy_lyrics %>% 
-  group_by(title, album) %>% 
-  count(sentiment) %>% 
-  spread(key = sentiment, value = n, fill = 0) %>% 
-  mutate(sentiment_ratio = (positive - negative) / (positive + negative)) %>% 
-  head(9)
+>>> need for AFINN as well to comapre scores better...!
 
-```
+BIGRAMS AND TRIGRAMS
 
-NAs in some sentiment columns >>> convert to ZEROs...
-# use replace_na() from the tidyr package!
-# or in spread() use the option fill = and set it to 0!
+NEGATION WORDS
 
-```{r}
-
-tidy_lyrics %>% 
-  group_by(title, album) %>% 
-  count(sentiment) %>% 
-  spread(key = sentiment, value = n) %>% 
-  replace_na(replace = list(negative = 0, neutral = 0, positive = 0)) %>%  # OR use fill = 0 inside spread()
-  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% 
-  head(9)
-
-```
-
-# now group by album!
-
-```{r}
-
-tidy_lyrics %>% 
-  group_by(title, album) %>% 
-  count(sentiment) %>% 
-  spread(key = sentiment, value = n, fill = 0) %>% 
-  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) #%>% 
-  #group_by(album) %>% 
-  #summarize(mean_album = mean(sentiment_ratio))
-
-```
-
-
-BY ALBUM
-
-```{r}
-# Net sentiment ratio by album across time.
-tidy_lyrics %>% 
-  group_by(album) %>% 
-  count(sentiment) %>% 
-  spread(key = sentiment, value = n) %>%     # turn each sentiment into unique columns!!
-  replace_na(replace = list(negative = 0, neutral = 0, positive = 0)) %>%
-  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) 
-
-```
-
-Now let's visualize this info!
-# Lyrics sentiment ratio graph by ALBUM ####
-with NEUTRAL
-using BING lexicon.
-geom_col() instead of geom_bar(stat = "identity") >>> basically the same thing but much better to not have to type `stat = "identity"` every single time!
-
-```{r}
-library(hrbrthemes)
-
-tidy_lyrics %>% 
-  group_by(album, year) %>% 
-  count(sentiment) %>% 
-  spread(key = sentiment, value = n) %>% 
-  replace_na(replace = list(negative = 0, neutral = 0, positive = 0)) %>%   
-  # replace NAs with ZEROs!
-  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% # neutral 
-  select(album, year, sentiment_ratio) %>% 
-  ggplot(aes(album, sentiment_ratio)) +      # reorder(album, sentiment_ratio), sentiment_ratio
-  geom_col(fill = "darkgreen", alpha = 0.7) +  
-  # aes(fill = sentiment_ratio > 0)   irrelevant as ALL negative...
-  scale_fill_manual(guide = FALSE, values = c('#565b63', '#c40909')) +
-  scale_y_percent(limits = c(-0.15, 0.10), breaks = pretty_breaks(7)) +    # from hrbrthemes
-  theme_bw() +                     # from hrbrthemes
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 0.95)) +
-  ggtitle("Lyrics Sentiment Ratio (along album release)", 
-          subtitle = "(Positive-Negative) / (Positive + Negative + Neutral)") +
-  labs(x = "Albums", y = "Sentiment Ratio (%)")
-
-```
-
-# needs some work........    why negative? look at HOW negative is defined.
-# negative talk but with positive action with negative undertones???? 
-
-in the BING lexicon, there are far more negatively-categorized words than positive... more than twice as many in fact...
-
-```{r}
-
-get_sentiments("bing") %>% 
-  count(sentiment)
-
-get_sentiments("nrc") %>% 
-  count(sentiment)
-
-```
-
-The Weight >>> showed "won't" used as positive
-
->>> investigate bi-grams and tri-grams
-
-
-
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
 # Most common pos.neg words in THrice lyrics! ####
 
-```{r}
+```{r Most common positive and negative words}
 
-word_count <- tidy_lyrics %>% 
+word_count <- emotions_lyrics_bing %>% 
   count(word, sentiment, sort = T) %>% 
   ungroup()
 
-top_sentiments <-  word_count %>% 
+top_sentiments_bing <-  word_count %>% 
   filter(sentiment != 'neutral') %>% 
   group_by(sentiment) %>% 
   top_n(5, wt = n) %>% 
@@ -214,7 +111,7 @@ top_sentiments <-  word_count %>%
 
 # plot the occurences of the most common pos-neg words!
 
-ggplot(top_sentiments, aes(reorder(word, num), num, fill = sentiment)) +
+ggplot(top_sentiments_bing, aes(reorder(word, num), num, fill = sentiment)) +
   geom_bar(stat = 'identity', alpha = 0.75) + 
   scale_fill_manual(guide = F, values = c("black", "darkgreen")) +
   scale_y_continuous(limits = c(-40, 70), breaks = pretty_breaks(12)) + 
@@ -233,14 +130,14 @@ ggplot(top_sentiments, aes(reorder(word, num), num, fill = sentiment)) +
 
 # separate between negative and positive words
 # order by number of occurences
-# another way to visualize this is using a wordcloud!
+another way to visualize this is using a wordcloud!
 
 # Word cloud: Most common Pos-Neg words in Thrice lyrics ####
 
-```{r}
+```{r wordcloud most common pos-neg}
 library(wordcloud)
 
-tidy_lyrics %>% 
+emotions_lyrics_bing %>% 
   filter(sentiment != 'neutral') %>% 
   count(word, sentiment, sort = T) %>% 
   reshape2::acast(word ~ sentiment, value.var = "n", fill = 0) %>% 
@@ -251,39 +148,11 @@ tidy_lyrics %>%
 # LOVE appears most, free, faith, perfect, grace...
 # FALL appears most, dead, burn, fear, sick...
 
-# with nrc >>>>  Distribution of emotion words BOXPLOT: ####
-
-```{r}
-
-emotions_lyrics <- wordToken2 %>% 
-  filter(!grepl('[0-9]', word)) %>%                  # because numbers cant have feelings
-  left_join(get_sentiments("nrc"), by = "word") %>% 
-  filter(!(sentiment == "negative" | sentiment == "positive")) %>% 
-  mutate(sentiment = as.factor(sentiment)) %>% 
-  group_by(album, sentiment) %>% 
-  summarize(freq = n()) %>% 
-  mutate(percent = freq / sum(freq)) %>%   # round()   *100
-  select(-freq) %>% 
-  ungroup() 
-
-emotions_lyrics %>% 
-  ggplot() +
-  geom_boxplot(aes(x = reorder(sentiment, percent), y = percent, fill = sentiment)) +
-  scale_y_percent() +
-  theme_bw() +
-  scale_fill_brewer(type = "qual", palette = "Set1") +
-  ggtitle("Distribution of Emotion words, across all albums")
-
-```
-
-we can clearly see the box-plot distributions of the different emotion categories!
-# black bar = mean, white circles = outliers
-
 ##### with bing >>>> only Pos-Neg-Neut ####
 
-```{r}
+```{r   OTHER EMOTIONS_LYRICS_BING}
 
-emotions_lyrics_bing <- wordToken2 %>% 
+pos_neg_bing <- tidy_lyrics %>% 
   filter(!grepl('[0-9]', word)) %>% 
   left_join(get_sentiments("bing"), by = "word") %>% 
   mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   
@@ -293,63 +162,62 @@ emotions_lyrics_bing <- wordToken2 %>%
   select(-freq) %>% 
   ungroup() 
 
-emotions_lyrics_bing %>% 
+pos_neg_bing %>% 
   filter(sentiment != "neutral") %>% 
   ggplot(aes(x = album, y = percent, color = sentiment, group = sentiment)) + 
   geom_line(size = 1) + 
   geom_point(size = 3) +
   xlab("Album") + ylab("Emotion Words Count (as %)") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_color_manual(values = c(positive = "darkgreen", negative = "black"))
+  scale_color_manual(values = c(positive = "darkgreen", negative = "black")) +
+  ggtitle("Positive/Negative Word Count as Percentage, along album release")
 
 ```
 
+neutral dominate the categorization so both positive and negative in very low ranges.
 
 
-# with NRC >>> ALL sentiments ####
+# with nrc >>>>  Distribution of emotion words BOXPLOT: ####
 
-# ONLY positive-negative over time/album year...   ####
+fitler out the words categorized as positive/negative... only comparing between the emotion terms.
 
-```{r}
+```{r emotions_lyrics_NRC }
 
-emotions_lyrics_nrc <- wordToken2 %>% 
-  filter(!grepl('[0-9]', word)) %>% 
+emotions_lyrics_nrc <- tidy_lyrics %>% 
   left_join(get_sentiments("nrc"), by = "word") %>% 
-  mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   
-  filter(sentiment != "neutral") %>% 
+  filter(!(sentiment == "negative" | sentiment == "positive")) %>% 
+  mutate(sentiment = as.factor(sentiment)) %>% 
   group_by(album, sentiment) %>% 
   summarize(freq = n()) %>% 
-  mutate(percent = round(freq / sum(freq)*100)) %>% 
+  mutate(percent = freq / sum(freq)) %>%   # round()   *100
   select(-freq) %>% 
-  mutate(sentiment = as.factor(sentiment)) %>% 
   ungroup() 
 
+library(hrbrthemes)
+
 emotions_lyrics_nrc %>% 
-  filter(sentiment == "positive" | sentiment == "negative") %>% 
-  ggplot(aes(album, percent/100, color = sentiment, group = sentiment)) +
-  geom_line(size = 1.5) +
-  geom_point(size = 3.5) +
-  scale_y_continuous(breaks = pretty_breaks(10), labels = percent_format()) +
-  xlab("Album") + ylab("Proportion of Emotion Words") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank())
+  ggplot() +
+  geom_boxplot(aes(x = reorder(sentiment, percent), y = percent, fill = sentiment)) +
+  scale_y_continuous(breaks = pretty_breaks(5), labels = percent_format()) +
+  theme_bw() +
+  scale_fill_brewer(type = "qual", palette = "Set1") +
+  ggtitle("Distribution of Emotion words", subtitle = "n = all 11 Albums") +
+  labs(x = "Emotion Term", y = "Percentage")
 
 ```
 
-# huge spike in positive sentiment in AI: Earth???
-
-Quite different from using BING lexicon...
+we can clearly see the box-plot distributions of the different emotion categories!
+# black bar = mean, black dots = outliers
 
 # NO pos or neg >>> anger, anticipation, disgust, fear, joy, sadness, surprise, trust
 
-```{r}
+```{r nrc all sentiments}
 
 emotions_lyrics_nrc %>% 
-  filter(sentiment != "positive" & sentiment != "negative") %>% 
-  ggplot(aes(album, percent/100, color = sentiment, group = sentiment)) +
+  ggplot(aes(album, percent, color = sentiment, group = sentiment)) +
   geom_line(size = 1.5) +
   geom_point(size = 3.5) +
-  scale_y_continuous(breaks = pretty_breaks(10), labels = percent_format()) +
+  scale_y_continuous(breaks = pretty_breaks(5), labels = percent_format()) +
   xlab("Album") + ylab("Proportion of Emotion Words") +
   ggtitle("Lyric Sentiments along Albums", subtitle = "From 2000-2016") +
   theme_bw() +
@@ -362,6 +230,7 @@ emotions_lyrics_nrc %>%
 # Rather messy. no noticeable trends to be found...! 
 # ALthough "fear" has started to creep up after AI:Fire outlier.
 # also sudden dip in "anger" in AI: Earth as seen in previous plot!
+# AI: Earth in general causes a lot of sudden increase/decrease in emotions...
 
 With EIGHT different emotions (anger, anticipation, disgust, fear, joy, sadness, surprise, and trust) our nice graph looks quite cluttered...
 
@@ -380,8 +249,8 @@ surprise, anticipation, joy, trust
 
 Let's use the colors from Set1 in the RColorBrewer palettes for our emotions.
 
-```{r}
-# cols <- colorRampPalette(brewer.pal(n = 8, name = "Set1"))(8)
+```{r get colors}
+cols <- colorRampPalette(brewer.pal(n = 8, name = "Set1"))(8)
 
 cols
 
@@ -389,20 +258,19 @@ cols
 
 Now that we've extracted the colors from Set1 let's assign them to the emotion categories.
 
-```{r}
+```{r assign colors and plot positive emotions}
 
 cols <- c("anger" = "#E41A1C", "sadness" = "#377EB8", "disgust" = "#4DAF4A", 
           "fear" = "#984EA3", "surprise" = "#FF7F00", "joy" = "#FFFF33", 
           "anticipation" = "#A65628", "trust" = "#F781BF")
 
 emotions_lyrics_nrc %>% 
-  filter(sentiment != "positive" & sentiment != "negative" &
-           sentiment != "anger" & sentiment != "disgust" & 
-           sentiment != "fear" & sentiment != "sadness") %>% 
-  ggplot(aes(album, percent/100, color = sentiment, group = sentiment)) +
+  filter(sentiment != "anger" & sentiment != "disgust" & 
+         sentiment != "fear" & sentiment != "sadness") %>% 
+  ggplot(aes(album, percent, color = sentiment, group = sentiment)) +
   geom_line(size = 1.5) +
   geom_point(size = 3.5) +
-  scale_y_continuous(breaks = pretty_breaks(10), labels = percent_format()) +
+  scale_y_continuous(breaks = pretty_breaks(5), labels = percent_format()) +
   xlab("Album") + ylab("Proportion of Emotion Words") +
   ggtitle("Lyric Sentiments along Albums", subtitle = "From 2000-2016") +
   theme_bw() +
@@ -414,16 +282,16 @@ emotions_lyrics_nrc %>%
 
 And now for the more negative emotions...
 
-```{r}
+```{r plot negative emotions}
 
 emotions_lyrics_nrc %>% 
   filter(sentiment != "positive" & sentiment != "negative" &
-           sentiment != "anticipation" & sentiment != "joy" & 
-           sentiment != "trust" & sentiment != "surprise") %>% 
-  ggplot(aes(album, percent/100, color = sentiment, group = sentiment)) +
+         sentiment != "anticipation" & sentiment != "joy" & 
+         sentiment != "trust" & sentiment != "surprise") %>% 
+  ggplot(aes(album, percent, color = sentiment, group = sentiment)) +
   geom_line(size = 1.5) +
   geom_point(size = 3.5) +
-  scale_y_continuous(breaks = pretty_breaks(10), labels = percent_format()) +
+  scale_y_continuous(breaks = pretty_breaks(5), labels = percent_format()) +
   xlab("Album") + ylab("Proportion of Emotion Words") +
   ggtitle("Lyric Sentiments along Albums", subtitle = "From 2000-2016") +
   theme_bw() +
@@ -434,18 +302,17 @@ emotions_lyrics_nrc %>%
 ```
 
 
-
-
 # AI: Earth spike in positive from large decrease in "anger", small increase in "joy"
 # decrease in anticipation as well....
 AI: Earth seems bereft in sentiments in general... besides joy and sadness
+AI: Fire seems to have untrendly amount of FEAR: let's take a closer look!
 
-```{r}
-# AI: Fire seems to have untrendly amount of FEAR: let's take a closer look!
+```{r fear - nrc}
+
 nrcfear <- get_sentiments("nrc") %>% 
   filter(sentiment == "fear")
 
-wordToken2 %>% 
+tidy_lyrics %>% 
   filter(album == "The Alchemy Index Fire") %>% 
   inner_join(nrcfear) %>% 
   count(word, sort = TRUE)
@@ -455,12 +322,12 @@ wordToken2 %>%
 # FIRE being tagged as "fear" is what's mainly pushing up the trend
 # fear, buried, die, gallows etc. are also in which is more in line with "fear" group
 
-```{r}
-# AI: Earth    ???
+```{r anger - nrc}
+
 nrc_anger <- get_sentiments("nrc") %>% 
   filter(sentiment == "anger")
 
-wordToken2 %>% 
+tidy_lyrics %>% 
   filter(album == "The Alchemy Index Earth") %>% 
   inner_join(nrc_anger) %>% 
   count(word, sort = TRUE)
@@ -468,14 +335,200 @@ wordToken2 %>%
 # appears only in 4 words!
 # in other AI albums appear much more frequently!
 
-wordToken2 %>% 
+tidy_lyrics %>% 
   filter(str_detect(album, "The Alchemy")) %>% 
   inner_join(nrc_anger) %>% 
-  group_by(album) %>% 
   count(album, title, word, sort = TRUE)
 
 ```
 
+group_by(album) %>% summarize() >>>>>???
+
+
+# Net sentiment ratio for each song 
+
+
+```{r net sentiment ratio 1.0}
+
+emotions_lyrics_bing %>% 
+  group_by(title) %>% 
+  count(sentiment) %>% 
+  spread(key = sentiment, value = n) %>% 
+  mutate(sentiment_ratio = (positive - negative) / (positive + negative)) %>% 
+  "["(.,5:9,)
+
+```
+
+NAs in some sentiment columns >>> convert to ZEROs...
+use `replace_na()` from the `tidyr` package!
+OR 
+in `spread()` use the option fill = and set it to 0!
+
+```{r net sentiment ratio 2.0}
+
+emotions_lyrics_bing %>% 
+  group_by(title) %>% 
+  count(sentiment) %>% 
+  spread(key = sentiment, value = n, fill = 0) %>% 
+  # replace_na(replace = list(negative = 0, neutral = 0, positive = 0)) %>%  
+  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% 
+  "["(., 5:9, )
+
+```
+
+BY ALBUM
+
+```{r net sentiment ratio album_means}
+
+emotions_lyrics_bing %>% 
+  group_by(title, album) %>% 
+  count(sentiment) %>% 
+  spread(key = sentiment, value = n, fill = 0) %>%   
+  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% 
+  ungroup() %>% 
+  group_by(album) %>% 
+  summarize(mean_album_ratio = mean(sentiment_ratio))
+
+```
+
+
+Now let's visualize this info!
+# Lyrics sentiment ratio graph by ALBUM ####
+with NEUTRAL
+using BING lexicon.
+geom_col() instead of geom_bar(stat = "identity") >>> basically the same thing but much better to not have to type `stat = "identity"` every single time!
+
+```{r visualize net sentiment ratio mean_album}
+
+emotions_lyrics_bing %>% 
+  group_by(title, album) %>% 
+  count(sentiment) %>% 
+  spread(key = sentiment, value = n, fill = 0) %>%   
+  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% 
+  ungroup() %>% 
+  group_by(album) %>% 
+  summarize(mean_album_ratio = mean(sentiment_ratio)) %>% 
+  ggplot(aes(album, mean_album_ratio)) +      # reorder(album, sentiment_ratio), sentiment_ratio
+  geom_col(fill = "darkgreen", alpha = 0.7) +  
+  # aes(fill = sentiment_ratio > 0)   irrelevant as ALL negative...
+  scale_fill_manual(guide = FALSE, values = c('#565b63', '#c40909')) +
+  scale_y_percent(limits = c(-0.15, 0.10), breaks = pretty_breaks(7)) +    # from hrbrthemes
+  theme_bw() +                     
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 0.95)) +
+  ggtitle("Lyrics Sentiment Ratio (along album release)", 
+          subtitle = "(Positive-Negative) / (Positive + Negative + Neutral), using the Bing lexicon") +
+  labs(x = "Albums", y = "Sentiment Ratio (%)")
+
+```
+
+
+why negative? look at HOW negative is defined.
+negative talk but with positive action with negative undertones???? 
+
+let's see if this holds true with the AFINN lexicon, the only lexicon we haven't touched yet in the `tidytext` package!
+
+```{r}
+
+emotions_lyrics_afinn <- tidy_lyrics %>% 
+  left_join(get_sentiments("afinn"), by = "word") 
+
+emotions_lyrics_afinn %>% 
+  summarize(NAs= sum(is.na(score)))
+ 
+#  group_by(album) %>%   
+#  mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   # add in neutral
+#  ungroup()
+
+
+```
+
+5226 of 6436 dont have AFINN score.... 使えない～～～～～
+
+
+```{r by song}
+
+afinn_scores <- emotions_lyrics_afinn %>% 
+  replace_na(replace = list(score = 0)) %>%
+  group_by(index = title) %>% 
+  summarize(sentiment = sum(score)) %>% 
+  mutate(lexicon = "AFINN")
+
+bing_nrc_scores <- bind_rows(
+  tidy_lyrics %>% 
+    inner_join(get_sentiments("bing")) %>% 
+    mutate(lexicon = "Bing"),
+  tidy_lyrics %>% 
+    inner_join(get_sentiments("nrc") %>% 
+                 filter(sentiment %in% c("positive", "negative"))) %>% 
+    mutate(lexicon = "NRC")) %>% 
+  # from here we count the sentiments, spread on positive/negative, then create the score:
+  count(lexicon, index = title, sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>% 
+  mutate(lexicon = as.factor(lexicon),
+         sentiment = positive - negative)
+
+all_lexicons <- bind_rows(afinn_scores, bing_nrc_scores)
+lexicon_cols <- c("AFINN" = "#E41A1C", "NRC" = "#377EB8", "Bing" = "#4DAF4A")
+
+all_lexicons %>% 
+  ggplot(aes(index, sentiment, fill = lexicon)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~lexicon, ncol = 1, scales = "free_y") +
+  theme_bw() +
+  scale_fill_manual(values = lexicon_cols)
+
+```
+
+There are too many songs to be able to label them on the x-axis properly but I think you can get the general idea!
+
+As we go through the songs from the first track on Identity Crisis, the eponymous "Identity Crisis" all the way down to the last track on last year's To Be Everywhere Is To Be Nowhere, "Salt And Shadow", the AFINN, Bing, and NRC lexicons seem to agree on the sentiments but differ in the magnitude of the expressed sentiment for a specific song.
+
+Let's compare the lexicons on how many "positive" and "negative" words they each have.
+
+```{r}
+
+get_sentiments("bing") %>% 
+  count(sentiment)
+
+get_sentiments("nrc") %>% 
+  count(sentiment)
+
+```
+
+in the BING lexicon, there are far more negatively-categorized words than positive... more than twice as many in fact...
+
+In the Bing lexicon: there are 4782 words that can be categorized as "negative" along with 2006 "positive" words.
+
+In the NRC lexicon: there are 3324 words that can be categorized as "negative" along with 2312 "positive" words.
+
+```{r}
+
+emotions_lyrics_afinn %>% 
+  select(score) %>% 
+  mutate(sentiment = if_else(score > 0, "positive", "negative", "NA")) %>% 
+  group_by(sentiment) %>% 
+  summarize(sum = n())
+
+emotions_lyrics_bing %>% 
+  group_by(sentiment) %>% 
+  summarize(sum = n())
+
+tidy_lyrics %>% 
+  left_join(get_sentiments("nrc"), by = "word") %>% 
+  group_by(sentiment) %>% 
+  summarize(sum = n())
+  
+```
+
+In all cases neutral or NA were the majority of the words...
+In all the lexicons, words were categorized much more as "negative" compared to "positive". However, from PART 2 we saw that in the song, "The Weight", "won't" was used in a positive sense in ___ with phrases such as "won't abandon" or "won't leave you"; could these negation words in front of positive words be messing up our sentiment calculations? We can figure this out by separating the lyrics text into bi-grams!
+
+Bi-grams are basically chunks of two words each in a text and we create a new dataset using the arguments in our trusty `unnest_tokens()` function!
+
+appearance of Negation Words in THrice's lyrics!
+
+>>> investigate bi-grams and tri-grams
 
 ## Ngrams! Splitting the text into slightly bigger word chunks!
 
@@ -490,8 +543,10 @@ After a lot of research and experimenting with different RegEx patterns I finall
 
 biGrams <- df %>% 
   select(album, title, year, lyrics) %>% 
-  mutate(lyrics = iconv(lyrics, to = 'latin1')) %>%                                # convert to ASCII for better separation into ngrams
-  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%   # split lines on the <br> tags
+  mutate(lyrics = iconv(lyrics, to = 'latin1')) %>% 
+  # convert to ASCII for better separation into ngrams
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%   
+  # split lines on the <br> tags
   unnest_tokens(ngram, line, token = "ngrams", n = 2)
 
 biGrams_sep <- biGrams %>% 
@@ -511,19 +566,13 @@ biGrams_sep %>% count(word1, word2, sort = TRUE) %>% head(10)
 
 bigrams of "in   the", "of   the", "we   are" dominate. Not very meaningful!
 
-Now let's filter our the stop_words from both `word1` and `word2`!
+Now let's filter our the stop_words from both `word1` and `word2` and then count up again for more meaningful bigrams!
 
 ```{r}
 
 biGrams_sep_filtered <- biGrams_sep %>% 
   filter(!word1 %in% stop_words$word,
          !word2 %in% stop_words$word)
-
-```
-
-Now let's try counting again for more meaningful bigrams!
-
-```{r}
 
 biGrams_count <- biGrams_sep_filtered %>% 
   count(word1, word2, sort = TRUE)
@@ -534,36 +583,9 @@ biGrams_count %>% head(10)
 
 
 
-```{r}
-
-biGrams_tfidf <- biGrams_sep_filtered %>%
-  unite(ngram, word1, word2, sep = " ") %>% 
-  count(album, ngram) %>% 
-  bind_tf_idf(ngram, album, n) %>% 
-  arrange(desc(tf_idf))
-
-biGrams_tfidf
-
-```
-
-Skewed toward the smaller albums? AI each has 6 songs each compared to ~12 for others. Consider that AI are actually split into two albums of two elements each.
 
 
-```{r}
 
-biGrams_tfidf %>% 
-  group_by(album) %>% 
-  top_n(5) %>% 
-  ungroup() %>% 
-  ggplot(aes(reorder(ngram, tf_idf), tf_idf, fill = album)) + 
-  geom_col(show.legend = FALSE) +
-  labs(x = NULL, y = "tf-idf") +
-  facet_wrap(~album, ncol = 3, scales = "free") +
-  coord_flip() +
-  scale_fill_brewer(type = "qual", palette = "Paired")
-
-
-```
 
 
 #### Negation words! How much does it screw up the sentiment scores?
@@ -571,7 +593,7 @@ biGrams_tfidf %>%
 
 ```{r}
 
-negation_words <- c("not", "no", "never", "without")
+negation_words <- c("not", "no", "never", "without", "won't", "don't", "wouldn't", "couldn't")
 
 negated_bigrams <- biGrams_sep %>% 
   filter(word1 %in% negation_words) %>% 
@@ -583,7 +605,8 @@ negated_bigrams %>% head(10)
 
 ```
 
-"not  alone", "no  evil", "not  afraid"  are actually very positive but not counted as such.
+"not  alone", "no  evil", "won't leave"  are actually very positive but not counted as such.
+On the other hand, "don't  care" is counted as positive!
 
 Let's visualize this to get a clear idea of the miscalculation!
 
@@ -600,7 +623,8 @@ negated_bigrams %>%
   scale_x_discrete(labels = function(x) gsub("__.+$", "", x)) +
   xlab("Word preceded by negation term") +
   ylab("sentiment score * number of occurences") + 
-  coord_flip()
+  coord_flip() +
+  theme_bw()
 
 ```
 
@@ -609,7 +633,7 @@ how about with the BING lexicon we've been using to sum up Positive/Negative?
 
 ```{r}
 
-negation_words <- c("not", "no", "never", "without")
+negation_words <- c("not", "no", "never", "without", "won't", "don't", "wouldn't", "couldn't")
 
 negated_bigrams <- biGrams_sep %>% 
   filter(word1 %in% negation_words) %>% 
@@ -623,70 +647,27 @@ negated_bigrams %>% head(10)
 
 
 
+Solution:
 
-
-
-
-
-
-
-
-
-
+Sum up the scores for both word1 and word2 as the overall sentiment score and then visualize?
 
 
 ```{r}
-# Comparison Alchemy Index albums! ----------------------------------------
 
-# Fire vs. Water
-# Earth vs. Air
+biGrams_sep %>% 
+  select(word1, word2) %>% 
+  filter(word1 %in% negation_words) %>% 
+  inner_join(get_sentiments("bing"), by = c(word2 = "word")) #%>% 
+  #mutate(negate_sentiment = inner_join(get_sentiments("bing"), by = c(word1 = "word")))
+  
 
-alchemy_index <- wordToken2 %>% 
-  filter(str_detect(album, "The Alchemy Index")) %>% 
-  select(title, album, year, word)
 
-alchemy_index %>% 
-  left_join(get_sentiments("nrc"), "word") %>% 
-  mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment))
 
-# to not clutter up global environment...
-tidy_lyrics %>% 
-  filter(str_detect(album, "The Alchemy Index")) %>% 
-  select(title, album, year, word) %>% 
-  left_join(get_sentiments("nrc"), "word") %>% 
-  mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>% 
-  filter(sentiment != "neutral") %>% 
-  group_by(album, sentiment) %>% 
-  summarize(freq = n()) %>% 
-  mutate(percent = round(freq / sum(freq)*100)) %>% 
-  select(-freq) %>% 
-  ungroup() %>% 
-  head(20)
 
-# with neutral
-tidy_lyrics %>% 
-  filter(str_detect(album, "The Alchemy Index")) %>% 
-  select(title, album, year, word) %>% 
-  left_join(get_sentiments("nrc"), "word") %>% 
-  mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>% 
-  group_by(album, sentiment) %>% 
-  summarize(freq = n()) %>% 
-  mutate(percent = round(freq / sum(freq)*100)) %>% 
-  select(-freq) %>% 
-  ungroup() %>% 
-  filter(sentiment != "neutral") %>% 
-  filter(sentiment != "positive") %>% 
-  filter(sentiment != "negative") %>% 
-  ggplot(aes(x = album, y = percent/100, color = sentiment, group = sentiment)) + 
-  geom_line(size = 1) + 
-  geom_point(size = 3) +
-  scale_y_continuous(breaks = pretty_breaks(10), labels = percent_format()) +
-  xlab("Album") + ylab("Proportion of Emotion Words") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank())
-# not informative... no timeline order of albums Fire or Water first? 
-# ordering changes trends dramatically
 
 ```
+
+
+
 
 
