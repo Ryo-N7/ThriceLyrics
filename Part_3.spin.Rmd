@@ -8,7 +8,11 @@ date: "Fri Oct 13 21:31:45 2017"
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 ```
 
-```{r include = FALSE }
+In Part 3 we get into the core element of our analysis, investigating the various sentiments behind Thrice's lyrics! 
+
+Using the three lexicons included with the `tidytext` package, NCR, Bing, and AFINN we can categorize our tokenized lyrics dataset and then perform a variety of transformations and manipulations to create some visualizations and tables!
+
+```{r packages }
 library(stringr)
 
 library(tidyverse)
@@ -22,6 +26,9 @@ library(gridExtra)
 
 library(wordcloud)
 
+```
+
+```{r load from initial datasets, include = FALSE}
 # load dataset ------------------------------------------------------------
 
 df <- read.csv('thrice.df.csv', header = TRUE, stringsAsFactors = FALSE)
@@ -49,7 +56,9 @@ countWord2 <- wordToken2 %>% count(word, sort=TRUE)
 
 
 Let's get started!
-Using the wordToken2 dataset that we created in __Part 2__ we will filter out any numbers in our data set and then use a `left_join()` function to 
+Using the wordToken2 dataset that we created in __Part 2__ we will filter out any numbers in our data set and then use a `left_join()` function to:
+- grab a specific sentiment lexicon with the `get_sentiments()` function
+- "join" the sentiment lexicon to the **tokenized** dataset, specify `by = "word"`
 
 
 ```{r tidy_lyrics and emotions_lyrics_bing}
@@ -65,15 +74,18 @@ emotions_lyrics_bing <- tidy_lyrics %>%
   mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   # add in neutral
   ungroup()
 
-```
-
-```{r count all sentiments BING}
 emotions_lyrics_bing %>% 
   count(sentiment)
 
 ```
 
+Unfortunately, the Bing lexicon counts most of the words in Thrice's lyrics as "neutral" as the 
+
 Positive: 423, Negative: 912, Neutral: 5095
+
+We'll come back to a more in-depth analysis of the nuances of each of the lexicons in the `tidytext` package a little bit later. 
+
+
 
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -94,7 +106,9 @@ NEGATION WORDS
 
 # Most common pos.neg words in THrice lyrics! ####
 
-```{r Most common positive and negative words}
+To have words with negative sentiment to have negative numbers we can create an `if else` statement that assigns **-n** to a word with a negative sentiment and to all else assign the regular **n** count. In the plot we'll then order the words in these groups by the number of times they appear.
+
+```{r Most common positive and negative words, fig.height=5, fig.width=8, fig.align='center'}
 
 word_count <- emotions_lyrics_bing %>% 
   count(word, sentiment, sort = T) %>% 
@@ -103,38 +117,33 @@ word_count <- emotions_lyrics_bing %>%
 top_sentiments_bing <-  word_count %>% 
   filter(sentiment != 'neutral') %>% 
   group_by(sentiment) %>% 
-  top_n(5, wt = n) %>% 
+  top_n(5, n) %>% 
   mutate(num = ifelse(sentiment == "negative", -n, n)) %>%  
-  # count of negative words as negative #s!
+  select(-n) %>% 
   mutate(word = reorder(word, num)) %>% 
-  select(word, sentiment, num)
-
-# plot the occurences of the most common pos-neg words!
+  ungroup() 
 
 ggplot(top_sentiments_bing, aes(reorder(word, num), num, fill = sentiment)) +
   geom_bar(stat = 'identity', alpha = 0.75) + 
   scale_fill_manual(guide = F, values = c("black", "darkgreen")) +
   scale_y_continuous(limits = c(-40, 70), breaks = pretty_breaks(12)) + 
-  # c(-40, -25, -10, 0, 10, 25, 40, 55, 70)
   labs(y = "Number of Occurrences",
        x = '',
        title = 'Lyrics Sentiment of Thrice',
        subtitle = 'Most Common Positive and Negative Words') +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
         panel.grid.minor = element_blank(),
         panel.grid.major.x = element_blank(),
         panel.grid.major.y = element_line(size = 1.1))
 
 ```
 
-# separate between negative and positive words
-# order by number of occurences
-another way to visualize this is using a wordcloud!
+Reminiscent of the most common words plot (without "stop words") from **Part 2** except this time we've differentiated between words with positive sentiment and negative sentiment! Another way to visualize this is using a wordcloud!
 
 # Word cloud: Most common Pos-Neg words in Thrice lyrics ####
 
-```{r wordcloud most common pos-neg}
+```{r wordcloud most common pos-neg, fig.height=5, fig.width=8, fig.align='center'}
 library(wordcloud)
 
 emotions_lyrics_bing %>% 
@@ -148,18 +157,20 @@ emotions_lyrics_bing %>%
 # LOVE appears most, free, faith, perfect, grace...
 # FALL appears most, dead, burn, fear, sick...
 
-##### with bing >>>> only Pos-Neg-Neut ####
+##### with bing >>>> only Pos-Neg ####
 
-```{r   OTHER EMOTIONS_LYRICS_BING}
+After filtering out the words categorized as neutral, we calculate the frequency by first grouping them along `sentiment` (the column specifying all the different emotion terms) and then counting the rows for each of these groups. Finally, we can calculate the percentage by dividing by the sum of all the rows in the dataset.
+
+```{r   OTHER EMOTIONS_LYRICS_BING, fig.height=5, fig.width=8, fig.align='center'}
 
 pos_neg_bing <- tidy_lyrics %>% 
   filter(!grepl('[0-9]', word)) %>% 
   left_join(get_sentiments("bing"), by = "word") %>% 
   mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   
   group_by(album, sentiment) %>% 
-  summarize(freq = n()) %>% 
-  mutate(percent = round(freq / sum(freq)*100)) %>% 
-  select(-freq) %>% 
+  summarize(n = n()) %>% 
+  mutate(percent = n / sum(n)) %>% 
+  select(-n) %>% 
   ungroup() 
 
 pos_neg_bing %>% 
@@ -167,30 +178,50 @@ pos_neg_bing %>%
   ggplot(aes(x = album, y = percent, color = sentiment, group = sentiment)) + 
   geom_line(size = 1) + 
   geom_point(size = 3) +
-  xlab("Album") + ylab("Emotion Words Count (as %)") +
+  scale_y_continuous(breaks = pretty_breaks(5), labels = percent_format()) +
+  labs(x = "Album", y = "Emotion Words Count (as %)") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_color_manual(values = c(positive = "darkgreen", negative = "black")) +
-  ggtitle("Positive/Negative Word Count as Percentage, along album release")
+  ggtitle("Positive/Negative Word Count as Percentage, along album release", subtitle = "Bing lexicon")
 
 ```
 
-neutral dominate the categorization so both positive and negative in very low ranges.
+As we saw when we counted the words categorized for each sentiment in the Bing lexicon at the beginning of the article, **neutral** sentiment dominates, so both the positive and negative percentages move around a very low range.
 
+Just looking at positive and negative sentiment groups isn't informative enough, now let's use the NRC lexicon to dig deeper!
 
 # with nrc >>>>  Distribution of emotion words BOXPLOT: ####
 
-fitler out the words categorized as positive/negative... only comparing between the emotion terms.
+The NRC lexicon not only categorizes words into "positive" and "negative" but also into eight different emotion terms, anger, anticipation, disgust, fear, joy, sadness, surprise, and trust.
 
-```{r emotions_lyrics_NRC }
+After filtering out the words categorized as positive/negative as we are only comparing between the emotion terms here, and do the same calculations as we did for the previous plot.
+
+Let's use the colors from Set1 in the RColorBrewer palettes to differntiate our emotion terms in the plot. We'll use these assigned colors for some line charts later on too!
+
+```{r get colors}
+
+cols <- colorRampPalette(brewer.pal(n = 8, name = "Set1"))(8)
+
+cols
+
+```
+
+"#E41A1C", "#377EB8", etc. are the color hex codes for the colors in "Set1". Now that we've extracted these color codes, let's assign them to the emotion categories and then specify those are the colors we want to use for our lines with `scale_color_manual()` function.
+
+```{r assign colors, emotions_lyrics_NRC, fig.height=5, fig.width=8, fig.align='center'}
+
+cols <- c("anger" = "#E41A1C", "sadness" = "#377EB8", "disgust" = "#4DAF4A", 
+          "fear" = "#984EA3", "surprise" = "#FF7F00", "joy" = "#FFFF33", 
+          "anticipation" = "#A65628", "trust" = "#F781BF")
 
 emotions_lyrics_nrc <- tidy_lyrics %>% 
   left_join(get_sentiments("nrc"), by = "word") %>% 
   filter(!(sentiment == "negative" | sentiment == "positive")) %>% 
   mutate(sentiment = as.factor(sentiment)) %>% 
   group_by(album, sentiment) %>% 
-  summarize(freq = n()) %>% 
-  mutate(percent = freq / sum(freq)) %>%   # round()   *100
-  select(-freq) %>% 
+  summarize(n = n()) %>% 
+  mutate(percent = n / sum(n)) %>%   
+  select(-n) %>% 
   ungroup() 
 
 library(hrbrthemes)
@@ -199,19 +230,25 @@ emotions_lyrics_nrc %>%
   ggplot() +
   geom_boxplot(aes(x = reorder(sentiment, percent), y = percent, fill = sentiment)) +
   scale_y_continuous(breaks = pretty_breaks(5), labels = percent_format()) +
+  scale_fill_manual(values = cols) +
+  ggtitle("Distribution of Emotion Terms", subtitle = "n = 11 (Albums)") +
+  labs(x = "Emotion Term", y = "Percentage") +
   theme_bw() +
-  scale_fill_brewer(type = "qual", palette = "Set1") +
-  ggtitle("Distribution of Emotion words", subtitle = "n = all 11 Albums") +
-  labs(x = "Emotion Term", y = "Percentage")
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 11, face = "bold"),
+        axis.text.y = element_text(size = 11, face = "bold"))
 
 ```
 
 we can clearly see the box-plot distributions of the different emotion categories!
 # black bar = mean, black dots = outliers
 
+But suppose we want to see how the lyrics change sentiment over time?
+We can create a bump chart that plots the different sentiment groups for each album in order of release-date!
+
 # NO pos or neg >>> anger, anticipation, disgust, fear, joy, sadness, surprise, trust
 
-```{r nrc all sentiments}
+```{r nrc all sentiments, fig.height=6, fig.width=8, fig.align='center'}
 
 emotions_lyrics_nrc %>% 
   ggplot(aes(album, percent, color = sentiment, group = sentiment)) +
@@ -221,48 +258,25 @@ emotions_lyrics_nrc %>%
   xlab("Album") + ylab("Proportion of Emotion Words") +
   ggtitle("Lyric Sentiments along Albums", subtitle = "From 2000-2016") +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank()) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 11, face = "bold"),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 11, face = "bold")) +
   scale_color_brewer(palette = "Set1")
   
 ```
 
-# Rather messy. no noticeable trends to be found...! 
-# ALthough "fear" has started to creep up after AI:Fire outlier.
+With EIGHT different emotions (anger, anticipation, disgust, fear, joy, sadness, surprise, and trust) in the NRC lexicon our nice graph looks quite cluttered and its hard to spot the trends.
+
+# ALthough "fear" has jumped up in AI:Fire outlier.
 # also sudden dip in "anger" in AI: Earth as seen in previous plot!
 # AI: Earth in general causes a lot of sudden increase/decrease in emotions...
 
-With EIGHT different emotions (anger, anticipation, disgust, fear, joy, sadness, surprise, and trust) our nice graph looks quite cluttered...
-
 To solve this problem, let's split the emotions into groups to be able to see changes better!
+These emotion terms won't perfectly group up but let's divide them into:
+- anger, disgust, fear, and sadness 
+- surprise, anticipation, joy, and trust 
 
-set sentiment as factors?
->>> easier to assign to manual color scale?
-
-NEG
-anger, disgust, fear, sadness      
->>> colorRampPalette(brewer.pal(n = 8, name = "Set1"))(8)[1:4]
-
-POS
-surprise, anticipation, joy, trust 
->>> colorRampPalette(brewer.pal(n = 8, name = "Set1"))(8)[5:8]
-
-Let's use the colors from Set1 in the RColorBrewer palettes for our emotions.
-
-```{r get colors}
-cols <- colorRampPalette(brewer.pal(n = 8, name = "Set1"))(8)
-
-cols
-
-```
-
-Now that we've extracted the colors from Set1 let's assign them to the emotion categories.
-
-```{r assign colors and plot positive emotions}
-
-cols <- c("anger" = "#E41A1C", "sadness" = "#377EB8", "disgust" = "#4DAF4A", 
-          "fear" = "#984EA3", "surprise" = "#FF7F00", "joy" = "#FFFF33", 
-          "anticipation" = "#A65628", "trust" = "#F781BF")
+```{r plot positive emotion}
 
 emotions_lyrics_nrc %>% 
   filter(sentiment != "anger" & sentiment != "disgust" & 
@@ -272,11 +286,11 @@ emotions_lyrics_nrc %>%
   geom_point(size = 3.5) +
   scale_y_continuous(breaks = pretty_breaks(5), labels = percent_format()) +
   xlab("Album") + ylab("Proportion of Emotion Words") +
-  ggtitle("Lyric Sentiments along Albums", subtitle = "From 2000-2016") +
+  ggtitle("Lyric Sentiments: Positive Emotion Terms", subtitle = "Release-date order (2000-2016)") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         axis.title.x = element_blank()) +
-  scale_color_manual(values = cols)
+  scale_color_manual(values = cols, name = "Emotion Terms")
 
 ```
 
@@ -285,22 +299,20 @@ And now for the more negative emotions...
 ```{r plot negative emotions}
 
 emotions_lyrics_nrc %>% 
-  filter(sentiment != "positive" & sentiment != "negative" &
-         sentiment != "anticipation" & sentiment != "joy" & 
+  filter(sentiment != "anticipation" & sentiment != "joy" & 
          sentiment != "trust" & sentiment != "surprise") %>% 
   ggplot(aes(album, percent, color = sentiment, group = sentiment)) +
   geom_line(size = 1.5) +
   geom_point(size = 3.5) +
   scale_y_continuous(breaks = pretty_breaks(5), labels = percent_format()) +
   xlab("Album") + ylab("Proportion of Emotion Words") +
-  ggtitle("Lyric Sentiments along Albums", subtitle = "From 2000-2016") +
+  ggtitle("Lyric Sentiments: Negative Emotion Terms", subtitle = "Release-date order (2000-2016)") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         axis.title.x = element_blank()) +
-  scale_color_manual(values = cols)
+  scale_color_manual(values = cols, name = "Emotion Terms")
 
 ```
-
 
 # AI: Earth spike in positive from large decrease in "anger", small increase in "joy"
 # decrease in anticipation as well....
@@ -354,7 +366,7 @@ emotions_lyrics_bing %>%
   group_by(title) %>% 
   count(sentiment) %>% 
   spread(key = sentiment, value = n) %>% 
-  mutate(sentiment_ratio = (positive - negative) / (positive + negative)) %>% 
+  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% 
   "["(.,5:9,)
 
 ```
@@ -393,7 +405,9 @@ emotions_lyrics_bing %>%
 
 
 Now let's visualize this info!
+
 # Lyrics sentiment ratio graph by ALBUM ####
+
 with NEUTRAL
 using BING lexicon.
 geom_col() instead of geom_bar(stat = "identity") >>> basically the same thing but much better to not have to type `stat = "identity"` every single time!
@@ -428,7 +442,7 @@ negative talk but with positive action with negative undertones????
 
 let's see if this holds true with the AFINN lexicon, the only lexicon we haven't touched yet in the `tidytext` package!
 
-```{r}
+```{r AFINN scores}
 
 emotions_lyrics_afinn <- tidy_lyrics %>% 
   left_join(get_sentiments("afinn"), by = "word") 
@@ -436,17 +450,12 @@ emotions_lyrics_afinn <- tidy_lyrics %>%
 emotions_lyrics_afinn %>% 
   summarize(NAs= sum(is.na(score)))
  
-#  group_by(album) %>%   
-#  mutate(sentiment = ifelse(is.na(sentiment), 'neutral', sentiment)) %>%   # add in neutral
-#  ungroup()
-
-
 ```
 
 5226 of 6436 dont have AFINN score.... 使えない～～～～～
 
 
-```{r by song}
+```{r sentiments along song}
 
 afinn_scores <- emotions_lyrics_afinn %>% 
   replace_na(replace = list(score = 0)) %>%
@@ -475,12 +484,17 @@ all_lexicons %>%
   ggplot(aes(index, sentiment, fill = lexicon)) +
   geom_col(show.legend = FALSE) +
   facet_wrap(~lexicon, ncol = 1, scales = "free_y") +
+  scale_fill_manual(values = lexicon_cols) +
+  ggtitle("Comparison of Sentiments Along Song-Order") +
+  labs(x = "Index of All Thrice Songs", y = "Sentiment Score") +
   theme_bw() +
-  scale_fill_manual(values = lexicon_cols)
+  theme(axis.text.x = element_blank())
 
 ```
 
 There are too many songs to be able to label them on the x-axis properly but I think you can get the general idea!
+
+The Bing lexicon sentiment along song order is generally negative. This confirms what we saw in the lyrics sentiment ratio (with the Bing lexicon) where we had visualized along album order instead.
 
 As we go through the songs from the first track on Identity Crisis, the eponymous "Identity Crisis" all the way down to the last track on last year's To Be Everywhere Is To Be Nowhere, "Salt And Shadow", the AFINN, Bing, and NRC lexicons seem to agree on the sentiments but differ in the magnitude of the expressed sentiment for a specific song.
 
@@ -527,6 +541,12 @@ In all the lexicons, words were categorized much more as "negative" compared to 
 Bi-grams are basically chunks of two words each in a text and we create a new dataset using the arguments in our trusty `unnest_tokens()` function!
 
 appearance of Negation Words in THrice's lyrics!
+
+
+
+
+
+
 
 >>> investigate bi-grams and tri-grams
 
@@ -666,6 +686,13 @@ biGrams_sep %>%
 
 
 ```
+
+
+
+
+
+Keep in mind that the lexicons in the `tidytext` package is not the be all and end all for text/sentiment analysis. One can even create their own lexicons through crowd-sourcing (such as Amazon MechanicalTurk, which is how some of the lexicons here were created) and from utilizing word lists accrued by your own company throughout the years dealing with customer/employee feedback, the sources are limitless!
+
 
 
 
