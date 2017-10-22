@@ -97,16 +97,16 @@ NET SENTIMENT RATIO      BING
 
 >>> need for AFINN as well to comapre scores better...!
 
-BIGRAMS AND TRIGRAMS
+BIGRAMS AND TRIGRAMS(?)
 
 NEGATION WORDS
 
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
-# Most common pos.neg words in THrice lyrics! ####
+# Most common pos.neg words in Thrice lyrics! ####
 
-To have words with negative sentiment to have negative numbers we can create an `if else` statement that assigns **-n** to a word with a negative sentiment and to all else assign the regular **n** count. In the plot we'll then order the words in these groups by the number of times they appear.
+To have words with negative sentiment to have negative numbers we can create an `if else` statement that assigns **-n** to a word with a negative sentiment and to all else assign the regular **n** count. We'll then order the words in these groups by the number of times they appear in the plot.
 
 ```{r Most common positive and negative words, fig.height=5, fig.width=8, fig.align='center'}
 
@@ -126,13 +126,12 @@ top_sentiments_bing <-  word_count %>%
 ggplot(top_sentiments_bing, aes(reorder(word, num), num, fill = sentiment)) +
   geom_bar(stat = 'identity', alpha = 0.75) + 
   scale_fill_manual(guide = F, values = c("black", "darkgreen")) +
-  scale_y_continuous(limits = c(-40, 70), breaks = pretty_breaks(12)) + 
-  labs(y = "Number of Occurrences",
-       x = '',
+  scale_y_continuous(limits = c(-40, 70), breaks = pretty_breaks(7)) + 
+  labs(x = '', y = "Number of Occurrences",
        title = 'Lyrics Sentiment of Thrice',
        subtitle = 'Most Common Positive and Negative Words') +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 14, face = "bold"),
         panel.grid.minor = element_blank(),
         panel.grid.major.x = element_blank(),
         panel.grid.major.y = element_line(size = 1.1))
@@ -141,7 +140,7 @@ ggplot(top_sentiments_bing, aes(reorder(word, num), num, fill = sentiment)) +
 
 Reminiscent of the most common words plot (without "stop words") from **Part 2** except this time we've differentiated between words with positive sentiment and negative sentiment! Another way to visualize this is using a wordcloud!
 
-# Word cloud: Most common Pos-Neg words in Thrice lyrics ####
+# Word Cloud: Most Common Positive and Negative Words in Thrice Lyrics ####
 
 ```{r wordcloud most common pos-neg, fig.height=5, fig.width=8, fig.align='center'}
 library(wordcloud)
@@ -153,15 +152,15 @@ emotions_lyrics_bing %>%
   comparison.cloud(colors = c("black", "darkgreen"), title.size = 1.5)
 
 ```
-
-# LOVE appears most, free, faith, perfect, grace...
-# FALL appears most, dead, burn, fear, sick...
+With the size of the word dictated by the size and central position in the cloud, this is another cool way to visualize the most common words. As seen before for positive words, __Love__ appears the most whereas for negative, __Fall__ appears most frequently.
 
 ##### with bing >>>> only Pos-Neg ####
 
+OK, now that we've looked at the most common words for either positive or negative sentiment, what proportion of these sentiments are present in within the entire lyrical dataset? For this we can create 
+
 After filtering out the words categorized as neutral, we calculate the frequency by first grouping them along `sentiment` (the column specifying all the different emotion terms) and then counting the rows for each of these groups. Finally, we can calculate the percentage by dividing by the sum of all the rows in the dataset.
 
-```{r   OTHER EMOTIONS_LYRICS_BING, fig.height=5, fig.width=8, fig.align='center'}
+```{r   OTHER EMOTIONS_LYRICS_BING, fig.height=7, fig.width=8, fig.align='center'}
 
 pos_neg_bing <- tidy_lyrics %>% 
   filter(!grepl('[0-9]', word)) %>% 
@@ -180,19 +179,20 @@ pos_neg_bing %>%
   geom_point(size = 3) +
   scale_y_continuous(breaks = pretty_breaks(5), labels = percent_format()) +
   labs(x = "Album", y = "Emotion Words Count (as %)") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_color_manual(values = c(positive = "darkgreen", negative = "black")) +
-  ggtitle("Positive/Negative Word Count as Percentage, along album release", subtitle = "Bing lexicon")
+  ggtitle("Positive and Negative Word Count (as Percentage of Total)", subtitle = "Bing lexicon") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 11, face = "bold"),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 11, face = "bold"))
 
 ```
 
-As we saw when we counted the words categorized for each sentiment in the Bing lexicon at the beginning of the article, **neutral** sentiment dominates, so both the positive and negative percentages move around a very low range.
-
-Just looking at positive and negative sentiment groups isn't informative enough, now let's use the NRC lexicon to dig deeper!
+As we saw when we counted the words categorized for each sentiment at the beginning of the article, the **neutral** sentiment (not shown above) dominates, so both the positive and negative percentages move around a very low range. However, just looking at positive and negative sentiment groups may not be informative enough, now let's use the NRC lexicon to dig deeper!
 
 # with nrc >>>>  Distribution of emotion words BOXPLOT: ####
 
-The NRC lexicon not only categorizes words into "positive" and "negative" but also into eight different emotion terms, anger, anticipation, disgust, fear, joy, sadness, surprise, and trust.
+The NRC lexicon not only categorizes words into "positive" and "negative" categories but also into eight different emotion terms, anger, anticipation, disgust, fear, joy, sadness, surprise, and trust.
 
 After filtering out the words categorized as positive/negative as we are only comparing between the emotion terms here, and do the same calculations as we did for the previous plot.
 
@@ -240,13 +240,7 @@ emotions_lyrics_nrc %>%
 
 ```
 
-we can clearly see the box-plot distributions of the different emotion categories!
-# black bar = mean, black dots = outliers
-
-But suppose we want to see how the lyrics change sentiment over time?
-We can create a bump chart that plots the different sentiment groups for each album in order of release-date!
-
-# NO pos or neg >>> anger, anticipation, disgust, fear, joy, sadness, surprise, trust
+we can clearly see the box-plot distributions of the different emotion categories! As in any boxplot, the black bar inside the box signifies the median, the hinges represent the 25th and 75th percentiles, while the whiskers extend to the value of 1.5 * IQR of their respective hinges, and the black dots are the outliers. But suppose we want to see how the lyrics change sentiment over time? We can create a bump chart that plots the different sentiment groups for each album in order of release-date!
 
 ```{r nrc all sentiments, fig.height=6, fig.width=8, fig.align='center'}
 
@@ -265,18 +259,14 @@ emotions_lyrics_nrc %>%
   
 ```
 
-With EIGHT different emotions (anger, anticipation, disgust, fear, joy, sadness, surprise, and trust) in the NRC lexicon our nice graph looks quite cluttered and its hard to spot the trends.
+With EIGHT different emotions (anger, anticipation, disgust, fear, joy, sadness, surprise, and trust) in the NRC lexicon our nice graph looks quite cluttered and its hard to spot the trends, although it is quite clear that **The Alchemy Index: Earth** is the source of a lot of sudden increases/decreases in emotions.
 
-# ALthough "fear" has jumped up in AI:Fire outlier.
-# also sudden dip in "anger" in AI: Earth as seen in previous plot!
-# AI: Earth in general causes a lot of sudden increase/decrease in emotions...
-
-To solve this problem, let's split the emotions into groups to be able to see changes better!
+To solve our current problem, let's split the emotions into groups to be able to see changes better!
 These emotion terms won't perfectly group up but let's divide them into:
 - anger, disgust, fear, and sadness 
 - surprise, anticipation, joy, and trust 
 
-```{r plot positive emotion}
+```{r plot positive emotion,  fig.height=6, fig.width=8, fig.align='center'}
 
 emotions_lyrics_nrc %>% 
   filter(sentiment != "anger" & sentiment != "disgust" & 
@@ -288,15 +278,18 @@ emotions_lyrics_nrc %>%
   xlab("Album") + ylab("Proportion of Emotion Words") +
   ggtitle("Lyric Sentiments: Positive Emotion Terms", subtitle = "Release-date order (2000-2016)") +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank()) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 11, face = "bold"),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 11, face = "bold")) +
   scale_color_manual(values = cols, name = "Emotion Terms")
 
 ```
 
 And now for the more negative emotions...
+Anticipation seems to have dramatic dips in AI: Fire and AI: Earth
+WHY AI: Earth?
 
-```{r plot negative emotions}
+```{r plot negative emotions,  fig.height=6, fig.width=8, fig.align='center'}
 
 emotions_lyrics_nrc %>% 
   filter(sentiment != "anticipation" & sentiment != "joy" & 
@@ -308,11 +301,15 @@ emotions_lyrics_nrc %>%
   xlab("Album") + ylab("Proportion of Emotion Words") +
   ggtitle("Lyric Sentiments: Negative Emotion Terms", subtitle = "Release-date order (2000-2016)") +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank()) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 11, face = "bold"),
+        axis.title.x = element_blank(),
+        axis.text.y = element_text(size = 11, face = "bold")) +
   scale_color_manual(values = cols, name = "Emotion Terms")
 
 ```
+
+# ALthough "fear" has jumped up in AI:Fire outlier by more than 10%!
+# also sudden dip in "anger" in AI: Earth as seen in previous plot!
 
 # AI: Earth spike in positive from large decrease in "anger", small increase in "joy"
 # decrease in anticipation as well....
@@ -354,7 +351,6 @@ tidy_lyrics %>%
 
 ```
 
-group_by(album) %>% summarize() >>>>>???
 
 
 # Net sentiment ratio for each song 
@@ -485,7 +481,7 @@ all_lexicons %>%
   geom_col(show.legend = FALSE) +
   facet_wrap(~lexicon, ncol = 1, scales = "free_y") +
   scale_fill_manual(values = lexicon_cols) +
-  ggtitle("Comparison of Sentiments Along Song-Order") +
+  ggtitle("Comparison of Sentiments", subtitle = " Along Song-Order") +
   labs(x = "Index of All Thrice Songs", y = "Sentiment Score") +
   theme_bw() +
   theme(axis.text.x = element_blank())
