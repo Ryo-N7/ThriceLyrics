@@ -1,0 +1,205 @@
+---
+title: "bi_grams"
+author: "RN7"
+date: "October 23, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+From **PART 2** we saw that in the song, "The Weight", "won't" was used in a positive sense in ___ with phrases such as "won't abandon" or "won't leave you"; could these negation words in front of positive words be messing up our sentiment calculations? We can figure this out by separating the lyrics text into bi-grams! Bi-grams are basically chunks of two words each in a text and we create a new dataset using the arguments in our trusty `unnest_tokens()` function!
+  
+  ## Ngrams! Splitting the text into slightly bigger word chunks!
+  
+  To separate into bi-grams instead of single words-per-row we use the option *token =* and set it to "ngrams" and then set *n* to *2*. 
+  
+```{r}
+  
+  biGrams <- df %>% 
+    select(album, title, year, lyrics) %>% 
+    mutate(lyrics = iconv(lyrics, to = 'latin1')) %>% 
+    # convert to ASCII for better separation into ngrams (words with apostrophes)
+    unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%   
+    # split lines on the <br> tags
+    unnest_tokens(ngram, line, token = "ngrams", n = 2)
+  
+  biGrams %>% head(5)
+  
+```
+  
+  You can see that there is an overlap for each word. "satellite" appears as the second word in the first row and subsequently apepars as the first word in the second bigram row. We can then turn each bi-gram into two separate columns, "word1" and "word2" using the `separate()` function.
+  
+```{r}
+  
+  biGrams_sep <- biGrams %>% 
+    separate(ngram, c("word1", "word2"), sep = "[^-'\\w]")  
+  
+  biGrams_sep %>%
+    "["(., 5:9, )
+  
+```
+  
+  At first I had a problem where `separate()` would ignore the apostrophes and therefore split "I'll" into "I" and "ll" which screwed up the process of splitting the bigrams into separate single word columns. To do this without any warning messages appearing, I had to convert all the character string vectors to ASCII format using the `iconv()` function.
+  
+  For example: "I'll go" turned into `word1`: "I", `word2`: "ll", and ` `: "go" instead of `word1`: "I'll" and `word2`: "go". After some research and experimenting with different RegEx patterns I finally found a way for `separate()` to NOT delete the apostrophes and split the bigrams up properly. The RegEx used can be seen in the `sep = ` argument.
+  
+  Now that we have a dataframe with the bigrams separated into their individual words. Let's try counting the most common bigrams:
+  
+```{r}
+  
+  biGrams_sep %>% count(word1, word2, sort = TRUE) %>% head(10)
+  
+```
+  
+  bigrams of "in   the", "of   the", "we   are" dominate. Not very meaningful!
+  
+  Now let's filter our the stop_words from both `word1` and `word2` and then count up again for more meaningful bigrams!
+    
+```{r bigrams_sep_filtered}
+  
+  biGrams_sep_filtered <- biGrams_sep %>% 
+    filter(!word1 %in% stop_words$word,
+           !word2 %in% stop_words$word)
+  
+  biGrams_count <- biGrams_sep_filtered %>% 
+    count(album, title, word1, word2, sort = TRUE)
+  
+  biGrams_count %>% head(10)
+  
+```
+  
+  "gotta" and "wake" appearing from the song titled "Wake Up" would be self-explanatory but what about in the song "A Living Dance Upon Dead Minds"?
+  
+```{r a livign dance upon dead minds}
+  
+  df %>% 
+    filter(title == "A Living Dance Upon Dead Minds") %>% 
+    unnest_tokens(lines, lyrics, token = str_split, pattern = " <br>" ) %>% 
+    select(lines) %>% 
+    head(10)
+  
+```
+  
+  It appears that similar lines are repeated throughout the song but in this case we can't really call this a chorus... As noted in previous articles during the data gathering for lyrics it's necessary to make sure to look for sources that don't repeat the chorus or have the chorus as a separate section. As a side note, the disorganized syntax seen in the lyrics is from the poem this song was based on, "But If A Living Dance Upon Dead Minds" by E. E. Cummings.
+  
+  Back to the topic, because we have separated each word in the bi-gram, we can now search for the variety of negation words in the column `word1` and check out what appears in `word2`.
+  
+  # Negation words! ####
+  
+  Let's create a character vector of common negation words such as "not", "no", "wouldn't", etc.
+  
+```{r negation vector}
+  
+  negation_words <- c("not", "no", "never", "without", "won't", "don't", "wouldn't", "couldn't")
+  
+```
+  
+  Then let's filter bi-grams that only have negation words in the `word1` column!
+  
+```{r negated bigrams}
+  
+  negated_bigrams <- biGrams_sep %>% 
+  filter(word1 %in% negation_words) %>% 
+  inner_join(get_sentiments("afinn"), by = c(word2 = "word")) %>% 
+  count(word1, word2, score, sort = TRUE) %>% 
+  ungroup()
+  
+  negated_bigrams %>% head(10)
+  
+```
+  
+  Using the AFINN lexicon's scoring scheme (negative sentiments as negative scores up to a magnitude of -5 and vice versa) we can look at how the words in `word2` are scored. "not  alone", "no  evil", "won't leave" are actually very positive but not counted as such. On the other hand, "don't  care" is counted as positive! As each negation word is scored as -1, this can overstate or understate the scores greatly!
+    
+    Let's visualize this to get a clear idea of the miscalculation!
+  We will create a new variable called `contribution` where we multiply the score of `word2` with their frequency to see the full effect of each negation bi-gram on the overall sentiment score.
+  
+```{r, fig.height=7, fig.width=10, fig.align='center'}
+  
+  negated_bigrams %>% 
+  mutate(contribution = n * score,
+  score = reorder(paste(word2, word1, sep = "__"), contribution),
+  sentiment = if_else(contribution > 0, "positive", "negative")) %>% 
+  group_by(word1) %>% 
+  # top_n(10, abs(contribution)) %>% 
+  ggplot(aes(word2, contribution, fill = as.factor(sentiment))) +
+  geom_col(show.legend = FALSE, alpha = 0.8, width = 0.9) +
+  scale_fill_manual(guide = FALSE, values = c("black", "darkgreen")) +
+  facet_wrap(~ word1, scales = "free") +
+  coord_flip() +
+  theme_bw() +
+  theme(axis.text = element_text(size = 12),
+  panel.grid.minor.x = element_line(size = 1.1),
+  panel.grid.major.x = element_line(size = 1.1)) +
+  labs(x = "Word Preceded by Negation Term", y = "Sentiment Score * Number of Occurences") 
+  
+```
+  
+  Note that as the AFINN lexicon doesn't have scores for most of the words in our lyrics dataset (a measly 1210 out of 6430) this plot shows only a very small portion of possible negation term + word bigrams.
+  
+  
+  # Possible Solutions? ####
+  
+  Sum up the scores for both word1 and word2 as the overall sentiment score and then visualize?
+  
+  Before we calculate this, we have to check to see if all the words in our negation_word list has a corresponding AFINN score.
+  
+```{r grab afinn}
+  
+  afinn <- get_sentiments("afinn")
+  
+  afinn %>% filter(word %in% negation_words)
+  
+```
+  
+  Unfortunately, it seems that AFINN only has a score for "no". We will need to manually add in the rest with `bind_row()`, `data_frame()`, and `rep()`. In line with the score for "no", we will assign -1 to the other negation words as well.
+  
+```{r add in rest of negation_words to afinn}
+  
+  afinn <- bind_rows(data_frame(word = negation_words,
+                                score = rep(x = -1, length.out = length(negation_words))),
+                     afinn)
+  
+  afinn %>% filter(word %in% negation_words)
+  
+```
+  
+  Now all the words in negation_words not just "no" have a AFINN score of -1! 
+    
+```{r}
+  
+  bigram_afinn_scores <- biGrams_sep %>% 
+    filter(word1 %in% negation_words) %>% 
+    inner_join(afinn, by = c(word1 = "word")) %>% 
+    inner_join(afinn, by = c(word2 = "word")) %>% 
+    rename(score_word1 = score.x, score_word2 = score.y)
+  
+  bigram_afinn_scores %>% tail(5)
+  
+```
+  
+  
+```{r}
+  
+  bigram_afinn_scores %>% 
+    count(word1, word2, score_word1, score_word2, sort = TRUE) %>% 
+    head(5) %>% 
+    mutate(sum = score_word1 + score_word2)
+  
+```
+  
+  Keep in mind that the lexicons in the `tidytext` package is not the be all and end all for text/sentiment analysis. One can even create their own lexicons through crowd-sourcing (such as Amazon MechanicalTurk, which is how some of the lexicons here were created) and from utilizing word lists accrued by your own company throughout the years dealing with customer/employee feedback, the sources are limitless!
+    
+    
+```{r}
+  
+  biGrams_sep %>% 
+    filter(word1 %in% negation_words) %>% 
+    filter(word2 %in% stop_words$word) %>% 
+    count(word1, word2, sort = TRUE)
+  
+```
+
+
