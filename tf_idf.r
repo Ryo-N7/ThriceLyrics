@@ -45,3 +45,13 @@ biGrams_tfidf %>%
   facet_wrap(~album, ncol = 3, scales = "free") +
   coord_flip() +
   scale_fill_brewer(type = "qual", palette = "Paired")
+
+
+
+
+>>> tf-idf of fire in fire-theme album...
+
+
+
+geom_col() instead of geom_bar(stat = "identity") 
+>>> basically the same thing but much better to not have to type `stat = "identity"` every single time!

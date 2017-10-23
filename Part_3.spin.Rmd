@@ -285,9 +285,9 @@ emotions_lyrics_nrc %>%
 
 ```
 
-And now for the more negative emotions...
-Anticipation seems to have dramatic dips in AI: Fire and AI: Earth
+Anticipation seems to have dramatic dips in AI: Fire and AI: Earth compared to the preceding albums. Meanwhile Joy reaches the highest point for positive emotions at ~20% in AI: Earth while Trust seems to hover around 15-17% throughout Thrice's discography until the last few albums.
 WHY AI: Earth?
+And next, the negative emotions.
 
 ```{r plot negative emotions,  fig.height=6, fig.width=8, fig.align='center'}
 
@@ -298,7 +298,7 @@ emotions_lyrics_nrc %>%
   geom_line(size = 1.5) +
   geom_point(size = 3.5) +
   scale_y_continuous(breaks = pretty_breaks(5), labels = percent_format()) +
-  xlab("Album") + ylab("Proportion of Emotion Words") +
+  labs(x = "Album", y = "Proportion of Emotion Words") +
   ggtitle("Lyric Sentiments: Negative Emotion Terms", subtitle = "Release-date order (2000-2016)") +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 11, face = "bold"),
@@ -308,28 +308,28 @@ emotions_lyrics_nrc %>%
 
 ```
 
-# ALthough "fear" has jumped up in AI:Fire outlier by more than 10%!
-# also sudden dip in "anger" in AI: Earth as seen in previous plot!
+We can see that both Fear and Sadness have sudden spikes in AI:Fire and AI:Earth, these two albums and their relationship with their respective preceding and following albums warrant further inspection as it is clear there is a shift in emotional tone (for the different Alchemy Index albums the reason is quite obvious). Again, a caveat for this analysis is that the AI albums are only six songs each while the others average around 11 songs each.
 
 # AI: Earth spike in positive from large decrease in "anger", small increase in "joy"
-# decrease in anticipation as well....
+
 AI: Earth seems bereft in sentiments in general... besides joy and sadness
 AI: Fire seems to have untrendly amount of FEAR: let's take a closer look!
 
 ```{r fear - nrc}
 
-nrcfear <- get_sentiments("nrc") %>% 
+nrc_fear <- get_sentiments("nrc") %>% 
   filter(sentiment == "fear")
 
 tidy_lyrics %>% 
   filter(album == "The Alchemy Index Fire") %>% 
-  inner_join(nrcfear) %>% 
-  count(word, sort = TRUE)
+  inner_join(nrc_fear) %>% 
+  count(word, sort = TRUE) %>% 
+  head(5)
 
 ```
 
-# FIRE being tagged as "fear" is what's mainly pushing up the trend
-# fear, buried, die, gallows etc. are also in which is more in line with "fear" group
+In AI: Fire, the word "fire" being tagged as Fear is what is mainly pushing the proportion of Fear up so high. The other words categorized, such as "fear", "buried", "die", and "gallows", definitely belong in this category as well.
+
 
 ```{r anger - nrc}
 
@@ -341,38 +341,22 @@ tidy_lyrics %>%
   inner_join(nrc_anger) %>% 
   count(word, sort = TRUE)
 
-# appears only in 4 words!
-# in other AI albums appear much more frequently!
-
 tidy_lyrics %>% 
   filter(str_detect(album, "The Alchemy")) %>% 
   inner_join(nrc_anger) %>% 
-  count(album, title, word, sort = TRUE)
+  count(album, word, sort = TRUE) %>% 
+  group_by(album) %>% 
+  summarize(n = n())
 
 ```
 
+Words categorized as Anger only appear four times! In the other AI albums Anger words appear much more frequently (and the proportions would also drastically change as well)! A separate article looking at only the AI albums may be beneficial...
 
+# Net sentiment ratio for each song ####
 
-# Net sentiment ratio for each song 
-
+Similar to what we did when we looked at the proportion of positive, negative, and neutral words in our data, we can calculate a net sentiment ratio for each song.
 
 ```{r net sentiment ratio 1.0}
-
-emotions_lyrics_bing %>% 
-  group_by(title) %>% 
-  count(sentiment) %>% 
-  spread(key = sentiment, value = n) %>% 
-  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% 
-  "["(.,5:9,)
-
-```
-
-NAs in some sentiment columns >>> convert to ZEROs...
-use `replace_na()` from the `tidyr` package!
-OR 
-in `spread()` use the option fill = and set it to 0!
-
-```{r net sentiment ratio 2.0}
 
 emotions_lyrics_bing %>% 
   group_by(title) %>% 
@@ -384,11 +368,13 @@ emotions_lyrics_bing %>%
 
 ```
 
-BY ALBUM
+We can fill out any NAs in the sentiment columns into zeros by either using the `replace_na()` from the `tidyr` package OR in `spread()` use the option *fill =* and set it to 0!
+
+Now let's create a new dataset that takes these sentiment ratios, group them by album, and then take the average for each album.
 
 ```{r net sentiment ratio album_means}
 
-emotions_lyrics_bing %>% 
+emotions_lyrics_bing_avg <- emotions_lyrics_bing %>% 
   group_by(title, album) %>% 
   count(sentiment) %>% 
   spread(key = sentiment, value = n, fill = 0) %>%   
@@ -397,61 +383,93 @@ emotions_lyrics_bing %>%
   group_by(album) %>% 
   summarize(mean_album_ratio = mean(sentiment_ratio))
 
+emotions_lyrics_bing_avg
+
 ```
 
+Let's visualize this info!
 
-Now let's visualize this info!
+# Lyrics sentiment ratio graph ####
 
-# Lyrics sentiment ratio graph by ALBUM ####
+```{r visualize net sentiment ratio mean_album, fig.height=6, fig.width=8, fig.align='center'}
 
-with NEUTRAL
-using BING lexicon.
-geom_col() instead of geom_bar(stat = "identity") >>> basically the same thing but much better to not have to type `stat = "identity"` every single time!
-
-```{r visualize net sentiment ratio mean_album}
-
-emotions_lyrics_bing %>% 
-  group_by(title, album) %>% 
-  count(sentiment) %>% 
-  spread(key = sentiment, value = n, fill = 0) %>%   
-  mutate(sentiment_ratio = (positive - negative) / (positive + negative + neutral)) %>% 
-  ungroup() %>% 
-  group_by(album) %>% 
-  summarize(mean_album_ratio = mean(sentiment_ratio)) %>% 
+emotions_lyrics_bing_avg %>% 
   ggplot(aes(album, mean_album_ratio)) +      # reorder(album, sentiment_ratio), sentiment_ratio
   geom_col(fill = "darkgreen", alpha = 0.7) +  
-  # aes(fill = sentiment_ratio > 0)   irrelevant as ALL negative...
   scale_fill_manual(guide = FALSE, values = c('#565b63', '#c40909')) +
   scale_y_percent(limits = c(-0.15, 0.10), breaks = pretty_breaks(7)) +    # from hrbrthemes
   theme_bw() +                     
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(angle = 45, hjust = 0.95)) +
-  ggtitle("Lyrics Sentiment Ratio (along album release)", 
-          subtitle = "(Positive-Negative) / (Positive + Negative + Neutral), using the Bing lexicon") +
+  ggtitle("Average Lyrics Sentiment Ratio (along album release)", 
+          subtitle = "(Positive - Negative) / (Positive + Negative + Neutral), using the Bing lexicon") +
   labs(x = "Albums", y = "Sentiment Ratio (%)")
 
 ```
 
+We've seen in previous plots that the sentiment of albums were more negative than positive and this plot confirms this as well. Why are Thrice categorized as so very negative? Let's look at how negative is defined by the three different lexicons.
 
-why negative? look at HOW negative is defined.
-negative talk but with positive action with negative undertones???? 
+Let's compare the lexicons themselves on how many "positive" and "negative" words they each categorize.
 
-let's see if this holds true with the AFINN lexicon, the only lexicon we haven't touched yet in the `tidytext` package!
+```{r}
+
+get_sentiments("bing") %>% 
+  count(sentiment)
+
+get_sentiments("nrc") %>% 
+  count(sentiment)
+
+```
+
+In the BING lexicon, there are far more negatively-categorized words than positive... more than twice as many in fact...
+
+- In the Bing lexicon: there are 4782 words that can be categorized as "negative" along with 2006 "positive" words.
+- In the NRC lexicon: there are 3324 words that can be categorized as "negative" along with 2312 "positive" words.
+
+Now let's count how many words in the lyrics were categorized for each sentiment:
+
+```{r}
+
+emotions_lyrics_bing %>% 
+  group_by(sentiment) %>% 
+  summarize(sum = n())
+
+tidy_lyrics %>% 
+  left_join(get_sentiments("nrc"), by = "word") %>% 
+  group_by(sentiment) %>% 
+  summarize(sum = n())
+  
+```
+
+Both the NRC and Bing lexicons didn't have a category for most of the words in Thrice lyrics (neutral or NA) and there were more negative words than positive.
+
+Let's see if this holds true with the AFINN lexicon, the only lexicon we haven't touched yet in the `tidytext` package! The AFINN lexicon gives a score from -5 (for negative sentiment) to +5 (positive sentiment). 
 
 ```{r AFINN scores}
 
 emotions_lyrics_afinn <- tidy_lyrics %>% 
-  left_join(get_sentiments("afinn"), by = "word") 
+  left_join(get_sentiments("afinn"), by = "word") %>% 
+  filter(!grepl('[0-9]', word))
 
 emotions_lyrics_afinn %>% 
   summarize(NAs= sum(is.na(score)))
+
+emotions_lyrics_afinn %>% 
+  select(score) %>% 
+  mutate(sentiment = if_else(score > 0, "positive", "negative", "NA")) %>% 
+  group_by(sentiment) %>% 
+  summarize(sum = n())
  
 ```
 
-5226 of 6436 dont have AFINN score.... 使えない～～～～～
 
+5220 of 6430 words in our lyrics dataset dont have AFINN score.... 使えない～～～～～
 
-```{r sentiments along song}
+In line with the other lexicons, the majority of the words were categorized into NA (neutral)... then words were categorized as "negative" at a higher frequency compared to "positive". 
+
+To create another visualization of , instead of taking the average for each album, we'll just take the sentiment score for each album and plot it along each song. This way we'll have more observations to compare the sentiment scoring ability of each lexicon.
+
+```{r sentiments along song, fig.height=6, fig.width=8, fig.align='center'}
 
 afinn_scores <- emotions_lyrics_afinn %>% 
   replace_na(replace = list(score = 0)) %>%
@@ -488,91 +506,50 @@ all_lexicons %>%
 
 ```
 
-There are too many songs to be able to label them on the x-axis properly but I think you can get the general idea!
+There are too many songs (103!) to show on the x-axis labels but I think you get the general idea!
 
-The Bing lexicon sentiment along song order is generally negative. This confirms what we saw in the lyrics sentiment ratio (with the Bing lexicon) where we had visualized along album order instead.
+The Bing lexicon sentiment along song order is generally negative, this lines up with what we saw in the average sentiment ratio plot where we had plotted along album order instead.
 
 As we go through the songs from the first track on Identity Crisis, the eponymous "Identity Crisis" all the way down to the last track on last year's To Be Everywhere Is To Be Nowhere, "Salt And Shadow", the AFINN, Bing, and NRC lexicons seem to agree on the sentiments but differ in the magnitude of the expressed sentiment for a specific song.
 
-Let's compare the lexicons on how many "positive" and "negative" words they each have.
+The AFINN lexicon has the largest absolute magnitudes, however, remember that only 1210 out of 6430 total words in the lyrics were given a AFINN score. This means that the few words that do have scores exaggerate the magnitude of the sentiment scores relative to the other lexicons.
 
-```{r}
-
-get_sentiments("bing") %>% 
-  count(sentiment)
-
-get_sentiments("nrc") %>% 
-  count(sentiment)
-
-```
-
-in the BING lexicon, there are far more negatively-categorized words than positive... more than twice as many in fact...
-
-In the Bing lexicon: there are 4782 words that can be categorized as "negative" along with 2006 "positive" words.
-
-In the NRC lexicon: there are 3324 words that can be categorized as "negative" along with 2312 "positive" words.
-
-```{r}
-
-emotions_lyrics_afinn %>% 
-  select(score) %>% 
-  mutate(sentiment = if_else(score > 0, "positive", "negative", "NA")) %>% 
-  group_by(sentiment) %>% 
-  summarize(sum = n())
-
-emotions_lyrics_bing %>% 
-  group_by(sentiment) %>% 
-  summarize(sum = n())
-
-tidy_lyrics %>% 
-  left_join(get_sentiments("nrc"), by = "word") %>% 
-  group_by(sentiment) %>% 
-  summarize(sum = n())
-  
-```
-
-In all cases neutral or NA were the majority of the words...
-In all the lexicons, words were categorized much more as "negative" compared to "positive". However, from PART 2 we saw that in the song, "The Weight", "won't" was used in a positive sense in ___ with phrases such as "won't abandon" or "won't leave you"; could these negation words in front of positive words be messing up our sentiment calculations? We can figure this out by separating the lyrics text into bi-grams!
-
-Bi-grams are basically chunks of two words each in a text and we create a new dataset using the arguments in our trusty `unnest_tokens()` function!
-
-appearance of Negation Words in THrice's lyrics!
-
-
-
-
-
-
-
->>> investigate bi-grams and tri-grams
+From **PART 2** we saw that in the song, "The Weight", "won't" was used in a positive sense in ___ with phrases such as "won't abandon" or "won't leave you"; could these negation words in front of positive words be messing up our sentiment calculations? We can figure this out by separating the lyrics text into bi-grams! Bi-grams are basically chunks of two words each in a text and we create a new dataset using the arguments in our trusty `unnest_tokens()` function!
 
 ## Ngrams! Splitting the text into slightly bigger word chunks!
 
-At first I had a problem where `separate()` would ignore the apostrophes and therefore split "I'll" into "I" and "ll" which screwed up the process of splitting the bigrams into separate columns of the two individual words. 
-
-To do this without any warning messages appearing, I had to convert all the character string vectors to ASCII format using the `iconv()` function.
-
-For example: "I'll go" turned into `word1`: "I", `word2`: "ll", and ` `: "go" instead of `word1`: "I'll" and `word2`: "go".
-After a lot of research and experimenting with different RegEx patterns I finally found a way for `separate()` to NOT delete the apostrophes and split the bigrams up properly below:
+To separate into bi-grams instead of single words-per-row we use the option *token =* and set it to "ngrams" and then set *n* to *2*. 
 
 ```{r}
 
 biGrams <- df %>% 
   select(album, title, year, lyrics) %>% 
   mutate(lyrics = iconv(lyrics, to = 'latin1')) %>% 
-  # convert to ASCII for better separation into ngrams
+  # convert to ASCII for better separation into ngrams (words with apostrophes)
   unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%   
   # split lines on the <br> tags
   unnest_tokens(ngram, line, token = "ngrams", n = 2)
 
-biGrams_sep <- biGrams %>% 
-  separate(ngram, c("word1", "word2"), sep = "[^-'\\w]")  
-
-biGrams_sep
+biGrams %>% head(5)
 
 ```
 
-Now we have a dataframe with the bigrams separated into their individual words. Let's try counting the most common bigrams:
+You can see that there is an overlap for each word. "satellite" appears as the second word in the first row and subsequently apepars as the first word in the second bigram row. We can then turn each bi-gram into two separate columns, "word1" and "word2" using the `separate()` function.
+
+```{r}
+biGrams_sep <- biGrams %>% 
+  separate(ngram, c("word1", "word2"), sep = "[^-'\\w]")  
+
+biGrams_sep %>% head(5)
+
+```
+
+At first I had a problem where `separate()` would ignore the apostrophes and therefore split "I'll" into "I" and "ll" which screwed up the process of splitting the bigrams into separate single word columns. To do this without any warning messages appearing, I had to convert all the character string vectors to ASCII format using the `iconv()` function.
+
+For example: "I'll go" turned into `word1`: "I", `word2`: "ll", and ` `: "go" instead of `word1`: "I'll" and `word2`: "go".
+After a lot of research and experimenting with different RegEx patterns I finally found a way for `separate()` to NOT delete the apostrophes and split the bigrams up properly. The RegEx used can be seen in the `sep = ` argument.
+
+Now that we have a dataframe with the bigrams separated into their individual words. Let's try counting the most common bigrams:
 
 ```{r}
 
@@ -591,25 +568,41 @@ biGrams_sep_filtered <- biGrams_sep %>%
          !word2 %in% stop_words$word)
 
 biGrams_count <- biGrams_sep_filtered %>% 
-  count(word1, word2, sort = TRUE)
+  count(album, title, word1, word2, sort = TRUE)
 
 biGrams_count %>% head(10)
 
 ```
 
-
-
-
-
-
-
-
-#### Negation words! How much does it screw up the sentiment scores?
-
+"gotta" and "wake" appearing from the song titled "Wake Up" would be self-explanatory but what about in the song "A Living Dance Upon Dead Minds"?
 
 ```{r}
 
+df %>% 
+  filter(title == "A Living Dance Upon Dead Minds") %>% 
+  unnest_tokens(lines, lyrics, token = str_split, pattern = " <br>" ) %>% 
+  select(lines) %>% 
+  head(10)
+
+```
+
+It appears that similar lines are repeated throughout the song but in this case we can't really call this a chorus... As noted in previous articles during the data gathering for lyrics it's necessary to make sure to look for sources that don't repeat the chorus or have the chorus as a separate section. As a side note, the disorganized syntax seen in the lyrics is from the poem this song was based on, "But If A Living Dance Upon Dead Minds" by E. E. Cummings.
+
+Back to the topic, because we have separated each word in the bi-gram, we can now search for the variety of negation words in the column `word1` and check out what appears in `word2`.
+
+# Negation words! ####
+
+Let's create a character vector of common negation words such as "not", "no", "wouldn't", etc.
+
+```{r negation vector}
+
 negation_words <- c("not", "no", "never", "without", "won't", "don't", "wouldn't", "couldn't")
+
+```
+
+Then let's filter bi-grams that only have negation words in the `word1` column!
+
+```{r negated bigrams}
 
 negated_bigrams <- biGrams_sep %>% 
   filter(word1 %in% negation_words) %>% 
@@ -621,28 +614,46 @@ negated_bigrams %>% head(10)
 
 ```
 
-"not  alone", "no  evil", "won't leave"  are actually very positive but not counted as such.
-On the other hand, "don't  care" is counted as positive!
+Using the AFINN lexicon's scoring scheme (negative sentiments as negative scores up to a magnitude of -5 and vice versa) we can look at how the words in `word2` are scored. "not  alone", "no  evil", "won't leave" are actually very positive but not counted as such. On the other hand, "don't  care" is counted as positive! As each negation word is scored as -1, this can overstate or understate the scores greatly!
 
 Let's visualize this to get a clear idea of the miscalculation!
 
-```{r}
+```{r, fig.height=6, fig.width=8, fig.align='center'}
 
 negated_bigrams %>% 
   mutate(contribution = n * score,
-         word2 = reorder(paste(word2, word1, sep = "__"), contribution)) %>% 
+         score = reorder(paste(word2, word1, sep = "__"), contribution),
+         sentiment = if_else(contribution > 0, "positive", "negative")) %>% 
   group_by(word1) %>% 
   top_n(10, abs(contribution)) %>% 
-  ggplot(aes(word2, contribution, fill = n * score > 0)) +
-  facet_wrap(~ word1, scales = "free") +
+  ggplot(aes(word2, contribution, fill = as.factor(sentiment))) +
   geom_col(show.legend = FALSE) +
-  scale_x_discrete(labels = function(x) gsub("__.+$", "", x)) +
-  xlab("Word preceded by negation term") +
-  ylab("sentiment score * number of occurences") + 
+  scale_fill_manual(guide = FALSE, values = c("black", "darkgreen")) +
+  facet_wrap(~ word1, scales = "free") +
   coord_flip() +
-  theme_bw()
+  theme_bw() +
+  theme(axis.text = element_text(size = 12),
+        panel.grid.minor.x = element_line(size = 1.1),
+        panel.grid.major.x = element_line(size = 1.1)) +
+  labs(x = "Word Preceded by Negation Term", y = "Sentiment Score * Number of Occurences") 
 
 ```
+
+We can see here that "no" is the most common negation word.
+
+```{r}
+
+biGrams_sep %>% 
+  filter(word1 %in% "no") %>% 
+  inner_join(get_sentiments("afinn"), by = c(word2 = "word")) %>% 
+  count(word2, score, sort = TRUE) %>% 
+  ungroup() %>% 
+  ggplot(aes(reorder(word2, score), score)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip()
+
+```
+
 
 
 how about with the BING lexicon we've been using to sum up Positive/Negative?
