@@ -10,6 +10,107 @@ library(rvest)
 
 # Define list of songs:
 
+base_url <- "https://www.azlyrics.com/lyrics/thrice/"
+
+url <- "https://www.azlyrics.com/lyrics/thrice/"
+
+song_title <- c("brokenlungs", "theskyisfalling", "asongformillymichaelson")
+
+url <- paste0(url, song_title, ".html")
+url
+
+page <- url %>%
+  read_html() %>% 
+  html_nodes("div") %>% 
+  .[[22]] %>% 
+  html_text()
+  
+
+library(purrr)
+
+base_url <- "https://www.azlyrics.com/lyrics/thrice/"
+song_title <- c("brokenlungs", "theskyisfalling", "asongformillymichaelson")
+end_url <- paste0(song_title, ".html")
+
+end_url
+
+map_df(end_url, function(i) {
+ 
+ pg <- read_html(paste0(base_url, i)) 
+ 
+ tibble(
+   title <- pg %>%  
+     html_nodes("b") %>% 
+     html_text(),
+   lyrics <- pg %>% 
+     html_nodes("div.col-xs-12:nth-child(2) > div:nth-child(8)") %>% 
+     html_text()
+     )
+  
+})
+
+
+
+# for loop ----------------------------------------------------------------
+
+base_url <- "https://www.azlyrics.com/lyrics/thrice/"
+
+song_title <- c("brokenlungs", "theskyisfalling", "asongformillymichaelson")
+
+url <- paste0(base_url, song_title, ".html")
+
+url
+
+out <- vector("character", length = length(url)) 
+
+for(i in seq_along(url)){
+  page <- read_html(url[i])
+  out[i] <- page %>% 
+    html_node("div.col-xs-12:nth-child(2) > div:nth-child(8)") %>% 
+    html_text()
+}
+
+out
+
+df_out <- as.data.frame(matrix(out, nrow = 3))
+
+df_out <- df_out %>% cbind(song_title)
+
+
+
+#### individually ####
+
+read_html("https://www.azlyrics.com/lyrics/thrice/identitycrisis.html") %>% 
+  html_nodes("div") %>% 
+  .[[22]] %>% 
+  html_text()
+
+read_html("https://www.azlyrics.com/lyrics/thrice/phoenixignition.html") %>% 
+  html_nodes("div") %>% 
+  .[[22]] %>% 
+  html_text()
+
+read_html("https://www.azlyrics.com/lyrics/thrice/whistleblower.html") %>% 
+  html_nodes("div") %>% 
+  .[[22]] %>% 
+  html_text()
+
+
+"div.col-xs-12:nth-child(2) > div:nth-child(8)"
+
+read_html("https://www.azlyrics.com/lyrics/thrice/whistleblower.html") %>% 
+  html_nodes("div.col-xs-12:nth-child(2) > div:nth-child(8)") %>% 
+  html_text()
+
+#
+
+
+
+
+
+
+
+
 
 # scrape lyrics names:
 thriceNameUrl <- "http://www.azlyrics.com/t/thrice.html"
