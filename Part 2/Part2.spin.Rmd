@@ -405,7 +405,7 @@ Now let's try to create plots for the most frequent words for each album. To do 
 word_count_nested <- wordToken2 %>% 
   group_by(album, word) %>% 
   summarize(count = n(), sort = TRUE) %>% 
-  top_n(5) %>% 
+  top_n(5, wt = count) %>% 
   arrange(album, desc(count)) %>% 
   nest() 
 
@@ -448,7 +448,7 @@ str(word_count_nested, list.len = 3, max.level = 2)
 
 ```
 
-On inspection, the `word_count_nested` dataframe consists of three columns of `album`, `data`, and `plot` by 11 rows, one row for each album. The column `data` is a series of lists that holds the *Top 10* or so words for each album (row). For example, the first element of `data` is a data frame of eight observations of two variables, specifically the eight most common words in the first album as rows with word and count as the two column variables. The next column, `plot`, is a series of lists that holds the plot information (the ggplot2 code we added into the data frame with `mutate()`) for each album (row).
+On inspection, the `word_count_nested` dataframe consists of three columns of `album`, `data`, and `plot` by 11 rows, one row for each album. The column `data` is a series of lists that holds the *Top 5* (give or take a few tied ranked) words for each album (row). For example, the first element of `data` is a data frame of eight observations of two variables, specifically the eight most common words in the first album as rows with word and count as the two column variables. The next column, `plot`, is a series of lists that holds the plot information (the ggplot2 code we added into the data frame with `mutate()`) for each album (row).
 
 By selecting the specific element within the list, we can extract the plot for a certain album
 

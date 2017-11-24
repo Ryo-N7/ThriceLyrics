@@ -522,7 +522,7 @@ Now let's try to create plots for the most frequent words for each album. To do 
 word_count_nested <- wordToken2 %>% 
   group_by(album, word) %>% 
   summarize(count = n(), sort = TRUE) %>% 
-  top_n(5) %>% 
+  top_n(5, wt = count) %>% 
   arrange(album, desc(count)) %>% 
   nest() 
 ```
@@ -533,39 +533,30 @@ Let's take a look at the individual elements of our new "data" column!
 word_count_nested$data[[1]]
 ```
 
-    ## # A tibble: 392 x 3
-    ##     word count  sort
-    ##    <chr> <int> <lgl>
-    ##  1 heart    12  TRUE
-    ##  2  eyes     8  TRUE
-    ##  3  life     6  TRUE
-    ##  4 light     6  TRUE
-    ##  5   cry     5  TRUE
-    ##  6 faith     5  TRUE
-    ##  7  soul     5  TRUE
-    ##  8  true     5  TRUE
-    ##  9   day     4  TRUE
-    ## 10  deep     4  TRUE
-    ## # ... with 382 more rows
+    ## # A tibble: 8 x 3
+    ##    word count  sort
+    ##   <chr> <int> <lgl>
+    ## 1 heart    12  TRUE
+    ## 2  eyes     8  TRUE
+    ## 3  life     6  TRUE
+    ## 4 light     6  TRUE
+    ## 5   cry     5  TRUE
+    ## 6 faith     5  TRUE
+    ## 7  soul     5  TRUE
+    ## 8  true     5  TRUE
 
 ``` r
 word_count_nested$data[[5]]
 ```
 
-    ## # A tibble: 178 x 3
-    ##       word count  sort
-    ##      <chr> <int> <lgl>
-    ##  1    free    15  TRUE
-    ##  2    burn    13  TRUE
-    ##  3    send    11  TRUE
-    ##  4    fire    10  TRUE
-    ##  5   flame     9  TRUE
-    ##  6    city     7  TRUE
-    ##  7    eyes     7  TRUE
-    ##  8 breathe     5  TRUE
-    ##  9    door     5  TRUE
-    ## 10   leave     5  TRUE
-    ## # ... with 168 more rows
+    ## # A tibble: 5 x 3
+    ##    word count  sort
+    ##   <chr> <int> <lgl>
+    ## 1  free    15  TRUE
+    ## 2  burn    13  TRUE
+    ## 3  send    11  TRUE
+    ## 4  fire    10  TRUE
+    ## 5 flame     9  TRUE
 
 The most common word data for the first list (Album = **Identity Crisis**) and the fifth list (Album = **AI: Fire**)
 
@@ -595,9 +586,9 @@ str(word_count_nested, list.len = 3, max.level = 2)
     ## Classes 'tbl_df', 'tbl' and 'data.frame':    11 obs. of  3 variables:
     ##  $ album: Factor w/ 11 levels "Identity Crisis",..: 1 2 3 4 5 6 7 8 9 10 ...
     ##  $ data :List of 11
-    ##   ..$ :Classes 'tbl_df', 'tbl' and 'data.frame': 392 obs. of  3 variables:
-    ##   ..$ :Classes 'tbl_df', 'tbl' and 'data.frame': 415 obs. of  3 variables:
-    ##   ..$ :Classes 'tbl_df', 'tbl' and 'data.frame': 422 obs. of  3 variables:
+    ##   ..$ :Classes 'tbl_df', 'tbl' and 'data.frame': 8 obs. of  3 variables:
+    ##   ..$ :Classes 'tbl_df', 'tbl' and 'data.frame': 7 obs. of  3 variables:
+    ##   ..$ :Classes 'tbl_df', 'tbl' and 'data.frame': 6 obs. of  3 variables:
     ##   .. [list output truncated]
     ##  $ plot :List of 11
     ##   ..$ :List of 9
@@ -608,7 +599,7 @@ str(word_count_nested, list.len = 3, max.level = 2)
     ##   .. ..- attr(*, "class")= chr  "gg" "ggplot"
     ##   .. [list output truncated]
 
-On inspection, the `word_count_nested` dataframe consists of three columns of `album`, `data`, and `plot` by 11 rows, one row for each album. The column `data` is a series of lists that holds the *Top 10* or so words for each album (row). For example, the first element of `data` is a data frame of eight observations of two variables, specifically the eight most common words in the first album as rows with word and count as the two column variables. The next column, `plot`, is a series of lists that holds the plot information (the ggplot2 code we added into the data frame with `mutate()`) for each album (row).
+On inspection, the `word_count_nested` dataframe consists of three columns of `album`, `data`, and `plot` by 11 rows, one row for each album. The column `data` is a series of lists that holds the *Top 5* (give or take a few tied ranked) words for each album (row). For example, the first element of `data` is a data frame of eight observations of two variables, specifically the eight most common words in the first album as rows with word and count as the two column variables. The next column, `plot`, is a series of lists that holds the plot information (the ggplot2 code we added into the data frame with `mutate()`) for each album (row).
 
 By selecting the specific element within the list, we can extract the plot for a certain album
 
@@ -662,12 +653,12 @@ str(nested_plots, list.len = 2, max.level = 2)
 
     ## List of 4
     ##  $ :List of 9
-    ##   ..$ data       :Classes 'tbl_df', 'tbl' and 'data.frame':  392 obs. of  3 variables:
+    ##   ..$ data       :Classes 'tbl_df', 'tbl' and 'data.frame':  8 obs. of  3 variables:
     ##   ..$ layers     :List of 1
     ##   .. [list output truncated]
     ##   ..- attr(*, "class")= chr [1:2] "gg" "ggplot"
     ##  $ :List of 9
-    ##   ..$ data       :Classes 'tbl_df', 'tbl' and 'data.frame':  415 obs. of  3 variables:
+    ##   ..$ data       :Classes 'tbl_df', 'tbl' and 'data.frame':  7 obs. of  3 variables:
     ##   ..$ layers     :List of 1
     ##   .. [list output truncated]
     ##   ..- attr(*, "class")= chr [1:2] "gg" "ggplot"

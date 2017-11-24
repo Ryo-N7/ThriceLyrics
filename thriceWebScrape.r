@@ -6,6 +6,37 @@ library(purrr)
 library(tidyverse)
 library(rvest)
 
+# scrape song names from Artist Page:
+
+url <- "https://www.azlyrics.com/t/thrice.html"
+
+#listAlbum
+#listAlbum > a:nth-child(61)
+#listAlbum > a:nth-child(63)
+#listAlbum > a:nth-child(65)
+# div.album:nth-child(68)
+
+url %>% 
+  read_html() %>% 
+  html_nodes("#listAlbum > a") %>% 
+  html_attr("href") 
+
+s <- url %>% 
+  read_html() %>% 
+  html_nodes("#listAlbum > a") %>% 
+  html_text() %>% 
+  as_tibble()
+
+
+# >>> need to delete spaces and turn to lower case for the indiv. song html links
+
+s <- s %>% 
+  mutate(value = str_replace_all(value, fixed(" "), ""),
+         value = value %>% tolower()) %>% 
+  mutate(value = replace(value, value == "", NA)) %>% 
+  na.omit(value)
+
+# need to take out special characters >>> (), - , ', / etc...
 
 
 # Define list of songs:
@@ -19,12 +50,23 @@ song_title <- c("brokenlungs", "theskyisfalling", "asongformillymichaelson")
 url <- paste0(url, song_title, ".html")
 url
 
+glimpse(url)
+
 page <- url %>%
   read_html() %>% 
   html_nodes("div") %>% 
   .[[22]] %>% 
   html_text()
-  
+
+pg <- read_html(paste0(base_url, i)) 
+
+read_html(paste0(base_url, "brokenlungs", ".html")) %>%  
+    html_nodes("b") %>% 
+  .[[2]] %>% 
+    html_text()
+
+
+
 
 library(purrr)
 
@@ -34,20 +76,25 @@ end_url <- paste0(song_title, ".html")
 
 end_url
 
-map_df(end_url, function(i) {
+thrice <- map_df(end_url, function(i) {
  
  pg <- read_html(paste0(base_url, i)) 
  
  tibble(
-   title <- pg %>%  
+   title = pg %>%  
      html_nodes("b") %>% 
+     .[[2]] %>% 
      html_text(),
-   lyrics <- pg %>% 
+   
+   lyrics = pg %>% 
      html_nodes("div.col-xs-12:nth-child(2) > div:nth-child(8)") %>% 
      html_text()
      )
   
 })
+
+
+
 
 
 
