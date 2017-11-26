@@ -99,11 +99,79 @@ thrice %>% filter(title == "All Eyes" )
 
 
 
+# Wikipedia meta data -----------------------------------------------------
+
+url <- "https://en.wikipedia.org/wiki/Thrice"
+
+# album titles
+url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
+  html_attr("title")
+
+# album titles (text) with year
+url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li") %>% 
+  html_text("#text")
+
+# href AND title
+url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
+  html_attrs()
+
+# href
+url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
+  html_attr("href")
+
+
+# track list + lengths
+.tracklist > tbody:nth-child(1)
+
+
+.tracklist > tbody:nth-child(1)
+
+.tracklist > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(2)
+
+.tracklist > tbody:nth-child(1) > tr:nth-child(3) > td:nth-child(2)
+
+u <- "https://en.wikipedia.org/wiki/Identity_Crisis_(Thrice_album)"
+
+u %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table() %>% str()
+
+# song lengths
+u %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table() %>% 
+  as.data.frame() %>% 
+  select(Length)
+
+# song titles
+u %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table() %>% 
+  as.data.frame() %>% 
+  select(Title)
+
+# track num.
+u %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table() %>% 
+  as.data.frame() %>% 
+  select(No.)
 
 
 
-
-
+head_url <- "https://en.wikipedia.org"
 
 
 

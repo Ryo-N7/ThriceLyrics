@@ -1,0 +1,140 @@
+---
+title: "part_4"
+author: "RN7"
+date: "November 25, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+
+```{r}
+library(tidytext)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(ggplot2)
+
+
+df <- read.csv("thrice.csv", stringsAsFactors = FALSE)
+
+glimpse(df)
+
+thrice <- df %>% 
+  unnest_tokens(lines, lyrics, token = str_split, pattern = " <br>") %>% 
+  unnest_tokens(word, lines, token = "words")
+
+```
+
+
+
+
+
+```{r}
+library(sentimentr)
+library(magrittr)
+library(dplyr)
+
+prez <- presidential_debates_2012 %>% get_sentences()
+
+prez %>% get_sentences()
+
+
+cr90 <- c("all power to the engines, we can't take another hit like that!", 
+          "we're running out of time", "we won't be able to to get out of this sector without this",
+          "don't you love how the empire always know how to find us?",
+          "don't like to be that guy but...", "I don't hate Rodians!")
+
+cr90 %>% sentiment()
+
+d <- df %>% 
+  unnest_tokens(lines, lyrics, token = str_split, pattern = " <br>") %>% 
+  select(lines) %>% as.matrix() 
+
+g <- d %>% sentiment()
+f <- d %>% sentiment_by()
+
+df %>% 
+  get_sentences(lines) %$% 
+  sentiment()
+
+df %>% 
+  sentiment(lines)
+
+thrice %>% sentiment_by(words)
+
+presidential_debates_2012 %>%
+    dplyr::mutate(dialogue_split = get_sentences(dialogue)) %$%
+    sentiment_by(dialogue_split, list(person, time))
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Preview for Part 4
+
+Here's a little preview of what examining negation words in bi-grams looks like. In the plot below we created a new variable called `contribution` where we multiplied the **AFINN** score of `word2` (the word coming after a *negation* word `word1`) with their frequency to see the full effect of each negation bi-gram on the overall sentiment.
+  
+```{r negation bi-gram sample, fig.height=7, fig.width=10, fig.align='center', echo=FALSE}
+library(tidyr)
+
+biGrams <- df %>% 
+  select(album, title, year, lyrics) %>% 
+  mutate(lyrics = iconv(lyrics, to = 'latin1')) %>% 
+  # convert to ASCII for better separation into ngrams (words with apostrophes)
+  unnest_tokens(line, lyrics, token = stringr::str_split, pattern = ' <br>') %>%   
+  # split lines on the <br> tags
+  unnest_tokens(ngram, line, token = "ngrams", n = 2)
+
+biGrams_sep <- biGrams %>% 
+  separate(ngram, c("word1", "word2"), sep = "[^-'\\w]")  
+
+negation_words <- c("not", "no", "never", "without", "won't", "don't", "wouldn't", "couldn't")
+
+negated_bigrams <- biGrams_sep %>% 
+  filter(word1 %in% negation_words) %>% 
+  inner_join(get_sentiments("afinn"), by = c(word2 = "word")) %>% 
+  count(word1, word2, score, sort = TRUE) %>% 
+  ungroup()
+  
+negated_bigrams %>% 
+  mutate(contribution = n * score,
+  score = reorder(paste(word2, word1, sep = "__"), contribution),
+  sentiment = if_else(contribution > 0, "positive", "negative")) %>% 
+  group_by(word1) %>% 
+  # top_n(10, abs(contribution)) %>% 
+  ggplot(aes(word2, contribution, fill = as.factor(sentiment))) +
+  geom_col(show.legend = FALSE, alpha = 0.8, width = 0.9) +
+  scale_fill_manual(guide = FALSE, values = c("black", "darkgreen")) +
+  facet_wrap(~ word1, scales = "free") +
+  coord_flip() +
+  theme_bw() +
+  theme(axis.text = element_text(size = 12),
+  panel.grid.minor.x = element_line(size = 1.1),
+  panel.grid.major.x = element_line(size = 1.1)) +
+  labs(x = "Word Preceded by Negation Term", y = "Sentiment Score * Number of Occurences") 
+  
+```
