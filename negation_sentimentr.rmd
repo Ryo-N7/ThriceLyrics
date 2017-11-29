@@ -14,12 +14,66 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r}
+library(sentimentr)
+library(magrittr)
+library(dplyr)
+
+cr90 <- c("all power to the engines, we can't take another hit like that!", 
+          "we're running out of time", "we won't be able to to get out of this sector without this",
+          "don't you love how the empire always know how to find us?",
+          "don't like to be that guy but...", "I don't hate Rodians!")
+
+cr90 %>% sentiment()
+
+cr90 %>% extract_sentiment_terms()
+
+'I dont hate Rodians' %>% extract_sentiment_terms()
+
+
+"i won't run away, although the storm is gettign worse and i see no end" %>% extract_sentiment_terms()
+
+"i won't run away, although the storm is gettign worse and i see no end" %>% sentiment_attributes()
+
+
+```
+
+
+
+
+
+
+
+```{r}
+
+presidential_debates_2012 <- presidential_debates_2012
+
+presidential_debates_2012 <- presidential_debates_2012 %>%
+    dplyr::mutate(dialogue_split = get_sentences(dialogue))
+
+
+presidential_debates_2012 %>%
+    dplyr::mutate(dialogue_split = get_sentences(dialogue)) %$%
+    sentiment_by(dialogue_split, list(person, time))
+
+presidential_debates_2012 <- presidential_debates_2012 %>%
+  sentiment_by(dialogue_split, list(person, time))
+
+library(termco)   # not available for current R version (3.4.0)
+library(gofastr)
+sentiment_attributes(presidential_debates_2012$dialogue)
+
+
+
+```
+
+
+
+```{r}
 library(tidytext)
 library(dplyr)
 library(stringr)
 library(tidyr)
 library(ggplot2)
-
 
 df <- read.csv("thrice.csv", stringsAsFactors = FALSE)
 
@@ -32,51 +86,45 @@ thrice <- df %>%
 ```
 
 
-
-
-
 ```{r}
-library(sentimentr)
-library(magrittr)
-library(dplyr)
+thrice_split_df <- df %>% 
+  unnest_tokens(lines, lyrics, token = str_split, pattern = " <br>")
 
-prez <- presidential_debates_2012 %>% get_sentences()
+thrice_split_df <- thrice_split_df %>% 
+  mutate(lines_split = get_sentences(lines))
 
-prez %>% get_sentences()
+thrice_split_df <- thrice_split_df %$%
+  sentiment_by(lines_split, list(title))
 
-
-cr90 <- c("all power to the engines, we can't take another hit like that!", 
-          "we're running out of time", "we won't be able to to get out of this sector without this",
-          "don't you love how the empire always know how to find us?",
-          "don't like to be that guy but...", "I don't hate Rodians!")
-
-cr90 %>% sentiment()
-
-d <- df %>% 
-  unnest_tokens(lines, lyrics, token = str_split, pattern = " <br>") %>% 
-  select(lines) %>% as.matrix() 
-
-g <- d %>% sentiment()
-f <- d %>% sentiment_by()
-
-df %>% 
-  get_sentences(lines) %$% 
-  sentiment()
-
-df %>% 
-  sentiment(lines)
-
-thrice %>% sentiment_by(words)
-
-presidential_debates_2012 %>%
-    dplyr::mutate(dialogue_split = get_sentences(dialogue)) %$%
-    sentiment_by(dialogue_split, list(person, time))
+thrice_split_df %>% arrange(desc(ave_sentiment))
 
 
+plot(thrice_split_df)
+
+plot(uncombine(thrice_split_df))
+
+thrice_split_df %>% highlight()
+
+
+
+thrice %>% filter(album == "Identity Crisis") %>% sentiment_attributes(word)
+
+
+
+thrice_split_df %>% 
+  ggplot(aes(title, ave_sentiment)) +
+  geom_col()
 
 ```
 
 
+```{r}
+
+thrice %>% 
+  mutate(word = get_sentences(word)) %>% 
+  sentiment_by(word, list(title))
+
+```
 
 
 

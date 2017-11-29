@@ -173,5 +173,84 @@ u %>%
 
 head_url <- "https://en.wikipedia.org"
 
+# href
+album_url <- url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
+  html_attr("href")
+
+
+album_links <- paste0(head_url, album_url)
+
+
+thrice_metadata <- map_df(album_links, function(i) {
+  
+  page <- read_html(i) 
+  
+  tibble(
+    track_num <- page %>% 
+      html_nodes(".tracklist") %>% 
+      html_table() %>% 
+      as.data.frame() %>% 
+      select(No.) %>% as.matrix(),
+    
+    title = page %>%  
+      html_nodes(".tracklist") %>% 
+      html_table() %>% 
+      as.data.frame() %>% 
+      select(Title) %>% as.matrix(),
+    
+    song_length = page %>% 
+      html_nodes(".tracklist") %>% 
+      html_table() %>% 
+      as.data.frame() %>% 
+      select(Length) %>% as.matrix()
+  )
+  
+}) 
+
+
+# Error: Columns `track_num <- page %>% html_nodes(".tracklist") %>% html_table() %>% \n    
+# as.data.frame() %>% select(No.) %>% as.matrix()`, `title`, `song_length` must be 1d atomic 
+# vectors or lists
+
+
+
+
+# try this from: https://community.rstudio.com/t/whats-the-most-interesting-use-of-rvest-youve-seen-in-the-wild/745/7
+
+####Straight from my notes: scrape links from a specified column in a well-formatted HTML table. ####
+
+library(rvest)
+library(xml2)
+
+# Get table
+html_table <- url %>%
+  read_html() %>%
+  html_nodes("table") %>%
+  .[[1]]
+
+# Get column names in table
+header <- html_table %>%
+  html_nodes("thead") %>%
+  html_nodes("th") %>%
+  html_text()
+
+# Find position of specific column
+pos <- grep(column_pattern, header)
+
+# Get table rows
+rows <- html_table %>%
+  html_nodes("tbody") %>%
+  html_nodes("tr")
+
+# Loop through rows and extract `href` attribute from `a` at position `pos`
+links <- sapply(rows, function(x) {
+  children <- xml2::xml_children(x)
+  children[pos] %>% html_nodes("a") %>% html_attr("href")
+})
+
+
+
 
 
