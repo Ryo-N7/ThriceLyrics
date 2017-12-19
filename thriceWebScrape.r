@@ -170,7 +170,7 @@ u %>%
   select(No.)
 
 
-
+url <- "https://en.wikipedia.org/wiki/Thrice"
 head_url <- "https://en.wikipedia.org"
 
 # href
@@ -182,6 +182,7 @@ album_url <- url %>%
 
 album_links <- paste0(head_url, album_url)
 
+album_links[1] %>% read_html() %>% html_nodes(".tracklist")
 
 thrice_metadata <- map_df(album_links, function(i) {
   
@@ -213,6 +214,133 @@ thrice_metadata <- map_df(album_links, function(i) {
 # Error: Columns `track_num <- page %>% html_nodes(".tracklist") %>% html_table() %>% \n    
 # as.data.frame() %>% select(No.) %>% as.matrix()`, `title`, `song_length` must be 1d atomic 
 # vectors or lists
+
+
+# ATTEMPT 2: get entire table, then split up into columns in tibble ####
+
+url <- "https://en.wikipedia.org/wiki/Thrice"
+head_url <- "https://en.wikipedia.org"
+
+# href
+album_url <- url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
+  html_attr("href")
+
+
+album_links <- paste0(head_url, album_url)
+
+album_links[1] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table() %>% glimpse()
+  mutate(song_num = as.numeric(`No.`),
+         title = `Title` %>% stringr::str_replace_all('"', ""),
+         song_length = lubridate::ms(Length)) %>% glimpse()
+
+
+album_links[9] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table() %>% glimpse()
+  mutate(song_num = as.numeric(`No.`),
+         title = `Title` %>% stringr::str_replace_all('"', ""),
+         song_length = lubridate::ms(Length)) %>% glimpse()
+
+# 2, 3, in strings
+# 9 doesnt exist as it appears as a LIST in wikipedia.... RRRRRRRRRRRRRR
+
+album_links[9] %>% 
+    read_html() %>% 
+    html_nodes(".tracklist") %>% 
+    html_table() %>% glimpse()
+  mutate(song_num = as.numeric(`No.`),
+         title = `Title` %>% stringr::str_replace_all('"', ""),
+         song_length = lubridate::ms(Length)) %>% glimpse()
+
+album_links[1:2]
+album_links
+
+album_links_trial <- album_links[1:3]
+
+album_links_again <- album_links[c(1,4:8)]
+album_links_again
+
+
+ex_1 <- album_links[1] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table() #%>% as.data.frame()
+
+str(ex_1)
+glimpse(ex_1)
+
+ex_1 %>% mutate(song_num = as.numeric(`No.`))
+ex_1 %>% mutate(son_len = as.Date(Length, format = '%M:%S'))
+ex_1 %>% mutate(son_len = ms(Length))
+
+
+thrice_metadata <- map_df(album_links_again, function(i) {
+  
+  page <- read_html(i) 
+  
+  meta_table <- page %>% 
+      html_nodes(".tracklist") %>% 
+      .[[1]] %>% 
+      html_table() %>% 
+      as.data.frame()
+  
+  meta_table <- meta_table %>% 
+    mutate(song_num = as.numeric(`No.`),
+           title = `Title` %>% stringr::str_replace_all('"', ""),
+           song_length = lubridate::ms(Length))
+  
+}) 
+
+glimpse(thrice_metadata)
+# for the most aprt it's ok.... Length is chr var but that can be transformed later on.
+getwd()
+write.csv(thrice_metadata, "~/R_materials/ThriceLyrics/thrice_metadata.csv")
+
+thrice_metadata <- map_df(album_links_again, function(i) {
+  
+  page <- read_html(i) 
+  
+  meta_table <- page %>% 
+    html_nodes(".tracklist") %>% 
+    .[[1]] %>% 
+    html_table() %>% 
+    as.data.frame()
+  
+  meta_table <- meta_table %>% 
+    mutate(album = i)
+  
+}) 
+
+
+
+# not mutate()
+
+thrice_metadata <- map_dfr(album_links_trial, function(i) {
+  
+  page <- read_html(i) 
+  
+  meta_table <- page %>% 
+    html_nodes(".tracklist") %>% 
+    .[[1]] %>% 
+    html_table() %>% 
+    rename(song_num = `No.`)
+  
+}) 
+
+
+
+
+
+
 
 
 

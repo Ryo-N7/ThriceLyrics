@@ -1,0 +1,476 @@
+---
+title: "Untitled"
+author: "RN7"
+date: "December 13, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Get lyrics through webscraping!
+
+Whether you are humming it on the way to work, bellowing out the chorus in the shower, or 
+AZ lyrics >>> website i've been using for lyrics from middle school...
+
+still going strong
+
+and website is structured well for this kind of thing...
+
+```{r}
+library(stringr)     # dealing with strings
+library(lubridate)   # dealing with date variables
+library(purrr)       # mapping functions over vectors
+library(dplyr)       # data manipulation and tidying
+library(rvest)       # web-scraping
+```
+
+# scrape song names from Artist Page:
+
+I wrote a brief intro on web-scraping in another (article)[] but we'll go over them again here. 
+(**Using the Mozilla Firefox browser**):
+
+1. Press **F12** or **Ctrl + Shift + C** to open up the *Inspector Tool* on the page you want to extract data from.
+2. Click on the left-most button on the pop-up bar.
+3. Hover your mouse over the element of the page you want to extract. The console will scroll to the exact html code that you are pointing at.
+4. Right-click on the highlighted html code, click on 'Copy' in the menu, then click on 'CSS Selector'.
+5. Then Paste into R and place it inside the `html_nodes()` function as above within brackets.
+6. Select only the element with the information you want with square brackets `.[[some_number]]`.
+7. Finally we specifically extract the text using `html_text()`. Other options include `html_table()` for tables.
+
+There are other ways to do this such as using the *Selector Gadget* ([Tutorial](https://stat4701.github.io/edav/2015/04/02/rvest_tutorial/)).
+
+In the context of our little project, we also have an intermediate step of using `html_attr()` to specify that we are looking for the `href` URL link and not the anchor text (the clickable text that appears on the page). Following the web-scraping portion we do a bit of wrangling to get the full URL link for each of the songs to show up correctly. 
+
+```{r}
+url <- "https://www.azlyrics.com/t/thrice.html"
+
+
+url %>% 
+  read_html() %>% 
+  html_nodes("#listAlbum > a") %>% 
+  html_attr("href") %>% 
+  as_tibble() %>% 
+  na.omit() %>% # cut out rows with NA values
+  mutate(value = str_replace(value, "..", ""),
+         value = paste0("https://azlyrics.com", value))
+
+```
+
+How about for a different band? All you have to do is change the target url to the band of your preference:
+
+```{r}
+url2 <- "https://www.azlyrics.com/s/sum41.html"
+
+
+url2 %>% 
+  read_html() %>% 
+  html_nodes("#listAlbum > a") %>% 
+  html_attr("href") %>% 
+  as_tibble() %>% 
+  na.omit() %>% 
+  mutate(value = str_replace(value, "..", "")) %>% 
+  mutate(value = paste0("https://azlyrics.com", value))
+
+
+```
+
+We will save what we did above as `url_link` as this tibble will hold all the URL links for each song by the band/artist of your choice.
+
+```{r}
+url <- "https://www.azlyrics.com/t/thrice.html"
+
+url_link <- url %>% 
+  read_html() %>% 
+  html_nodes("#listAlbum > a") %>% 
+  html_attr("href") %>% 
+  as_tibble() %>% 
+  na.omit() %>% 
+  mutate(value = str_replace(value, "..", "")) %>% 
+  mutate(value = paste0("https://azlyrics.com", value)) %>% as.matrix()
+
+```
+
+Now that we have the links for each song, we can use `map_df()` to create a data frame with the lyrics for each song!
+
+The title of each song is the 2nd element (`.[[2]]`) in the `html_node "b"` while the data for the lyrics are contained in the node `"div.col-xs-12:nth-child(2) > div:nth-child(8)"`. Finally, pass `html_text()` to scrape it as text.
+
+```{r map_df lyrics}
+
+thrice <- map_df(url_link, function(i) {
+  
+  pg <- read_html(i) 
+  
+  tibble(
+    title = pg %>%  
+      html_nodes("b") %>% 
+      .[[2]] %>% 
+      html_text(),
+    
+    lyrics = pg %>% 
+      html_nodes("div.col-xs-12:nth-child(2) > div:nth-child(8)") %>% 
+      html_text()
+  )
+  
+})
+```
+
+
+If you are doing this for a different band, just double-check to make sure the CSS selector for the nodes are the right ones! 
+
+Remember to save your data frame so you don't have to web scrape each time you come back:
+
+```{r}
+
+write.csv(thrice, "~/R_materials/ThriceLyrics/thrice_webscrape.csv")
+
+thrice <- read.csv("~/R_materials/ThriceLyrics/thrice_webscrape.csv", stringsAsFactors = FALSE)
+
+glimpse(thrice)
+
+```
+
+
+## clean the strings:
+
+Our scraped dataframe has a lot of artifacts in the strings that we need to clean out, a good package to use for string operations is `stringr`. 
+
+```{r clean strings}
+
+thrice <- thrice %>% 
+  mutate(title = str_replace_all(title, pattern = "\"", "")) %>% 
+  mutate(lyrics = str_replace_all(lyrics, pattern = "\r", ""),
+         lyrics = str_replace_all(lyrics, pattern = "\n", " "),
+         lyrics = trimws(lyrics, "both"))
+
+glimpse(thrice)
+
+```
+
+Our lyrics data set is ready so now we go on to scraping the meta data, this incldues information such as song length, song number, etc. 
+
+## Wikipedia meta data 
+
+For the purposes of this article we are just going for really basic meta data so we are going to look at Wikipedia for song length and song number.
+
+Trying out different CSS Selectors we can grab different parts of the album html node on Thrice's Wikipedia page:
+
+```{r}
+url <- "https://en.wikipedia.org/wiki/Thrice"
+
+# album titles
+url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
+  html_attr("title")
+
+# album titles (text) with year
+url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li") %>% 
+  html_text("#text")
+
+# href: grab the corresponding html link to each of the albums
+url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
+  html_attr("href")
+
+```
+
+What we need is, just like for the lyrics data, the URL link to each of the albums and so we again specify "href" in `html_attr()`.
+
+With this knowledge in hand, let's create the list for the links to each album:
+
+```{r}
+url <- "https://en.wikipedia.org/wiki/Thrice"
+
+
+head_url <- "https://en.wikipedia.org"
+
+# href
+album_url <- url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
+  html_attr("href")
+
+
+album_links <- paste0(head_url, album_url)
+
+```
+
+
+Let's see what the tracklist looks like for one of the albums (which, in the album_links list, is the first element)
+
+```{r}
+
+album_links[1] %>% read_html() %>% html_nodes(".tracklist")
+
+```
+
+Good, we can see that we're grabbing the right info.
+
+Now to put it all together into one data frame, once again by using `map_df()`: 
+
+# ATTEMPT 2: get entire table, then split up into columns in tibble ####
+```{r}
+
+url <- "https://en.wikipedia.org/wiki/Thrice"
+head_url <- "https://en.wikipedia.org"
+
+# href
+album_url <- url %>% 
+  read_html() %>% 
+  html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
+  html_attr("href")
+
+
+album_links <- paste0(head_url, album_url)
+
+```
+
+Originally, code to extract the meta data table for the 2nd and 3rd element (corresponding to "The Illusion of Safety" and "The Artist in the Ambulance" albums respectively) in our album list didn't work as the corresponding Wikipedia articles stored the meta data as lists rather than tables. But around a week or so later they got turned into a table format... so whoever edited it, thank you! 
+
+However, for Thrice's latest album (To Be Everywhere Is To Be Nowhere)[], I had to go and edit the meta data part myself!
+
+
+```{r}
+album_links[2] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table() %>% mutate(son_len = ms(Length))
+
+# 12/18/17: album 2 and album 3, the `No.` appear as chr rather than dbl. with track num appearing as 1.   2.   3. rather than 1    2   3
+# also NOT grabbing 2nd table for Alchemy Index >>> Vol. II and Vol. IV
+
+album_links[5] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table()  # grab BOTH .[[1]] and .[[2]] for Alchemy Index albums
+
+album_links[6] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table()  # grab BOTH .[[1]] and .[[2]] for Alchemy Index albums
+
+alc <- album_links[6] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table() %>% as.data.frame()
+
+alc %>% cbind()
+
+
+album_links[3] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table()
+
+album_links[1] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>%
+  .[[1]] %>% 
+  html_table()
+
+list_al <- album_links[1] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>%
+  html_table()
+
+list_al %>% as.data.frame()
+
+album_links[7] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table()
+
+album_links[9] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table() %>% glimpse()
+  mutate(song_num = as.numeric(`No.`),
+         title = `Title` %>% stringr::str_replace_all('"', ""),
+         song_length = lubridate::ms(Length)) %>% glimpse()
+
+# 9 doesnt exist as it appears as a LIST in wikipedia.... RRRRRRRRRRRRRR >>> 12/18/17 created by self
+  
+
+album_links[9] %>% 
+    read_html() %>% 
+    html_nodes(".tracklist") %>% 
+    html_table() %>% glimpse()
+  mutate(song_num = as.numeric(`No.`),
+         title = `Title` %>% stringr::str_replace_all('"', ""),
+         song_length = lubridate::ms(Length)) %>% glimpse()
+
+album_links[1:2]
+album_links
+
+album_links_trial <- album_links[1:3]
+
+album_links_again <- album_links[c(1,4:8)]
+album_links_again
+
+al_link <- album_links[1:4]
+al_link
+
+```
+
+
+```{r}
+
+ex_1 <- album_links[1] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table() 
+
+str(ex_1)
+glimpse(ex_1)
+
+ex_1 %>% mutate(son_len = ms(Length))
+
+ex_1 %>% mutate(Num = str_replace(`No.`, "\\.", "") %>% as.numeric())
+
+```
+
+The final data frame code:
+
+```{r}
+album_alchemy_links <- album_links[5:6]
+album_links <- album_links[c(1:4,7:9)] 
+
+
+thrice_metadata <- map_df(album_links, function(i) {
+  
+  page <- read_html(i) 
+  
+  meta_table <- page %>% 
+      html_nodes(".tracklist") %>% 
+      .[[1]] %>% 
+      html_table() %>% 
+      as.data.frame()
+  
+  meta_table <- meta_table %>% 
+    mutate(album = i,
+           Num = str_replace(`No.`, "\\.", "") %>% as.numeric(),
+           title = `Title` %>% stringr::str_replace_all('"', ""),
+           song_length = lubridate::ms(Length))
+  
+}) 
+
+glimpse(thrice_metadata)
+
+write.csv(thrice_metadata, "~/R_materials/ThriceLyrics/thrice_meta_most.csv")
+
+thrice_metadata <- read.csv("~/R_materials/ThriceLyrics/thrice_meta_most.csv", 
+                            stringsAsFactors = FALSE)
+
+# just for alchemy index
+
+thrice_alchemy_metadata <- map_df(album_alchemy_links, function(i) {
+  
+  page <- read_html(i) 
+  
+  meta_table <- page %>% 
+      html_nodes(".tracklist") %>% 
+      html_table() %>% 
+      as.data.frame()
+  
+  meta_table <- meta_table %>% 
+    mutate(album = i,
+           Num = `No.`,
+           title = `Title` %>% stringr::str_replace_all('"', ""))
+  
+}) 
+
+write.csv(thrice_alchemy_metadata, "~/R_materials/ThriceLyrics/thrice_meta_alchemy.csv")
+
+thrice_alchemy_metadata <- read.csv("~/R_materials/ThriceLyrics/thrice_meta_alchemy.csv", 
+                            stringsAsFactors = FALSE)
+
+
+########  ALBUMS: 1-4       NOT WORK     2, 3
+
+thrice_metadata <- map_df(al_link, function(i) {
+  
+  page <- read_html(i) 
+  
+  meta_table <- page %>% 
+      html_nodes(".tracklist") %>% 
+      .[[1]] %>% 
+      html_table() 
+  
+}) 
+
+
+#######   ALBUMS: 1, 4-8
+
+
+thrice_metadata <- map_df(album_links_again, function(i) {
+  
+  page <- read_html(i) 
+  
+  meta_table <- page %>% 
+    html_nodes(".tracklist") %>% 
+    .[[1]] %>% 
+    html_table() %>% 
+    as.data.frame()
+  
+  meta_table <- meta_table %>% 
+    mutate(album = i)
+  
+}) 
+
+
+
+```
+
+As before let's save our progress:
+
+```{r}
+write.csv(thrice_metadata, "~/thrice_metadata.csv")
+```
+
+Finally we can combine the meta data and the lyrics data by a common column, the song titles!
+
+```{r}
+
+thrice_webscrape_df <- thrice %>% left_join(thrice_metadata)   # should join on "title" column
+
+glimpse(thrice_webscrape_df)
+
+```
+
+We have lyrics data for 122 songs while the Wikipedia meta data picked up 133 songs... Among other things there's still a few things we need to fix:
+
+```{r}
+
+thrice %>% plyr::unrowname()
+thrice %>% glimpse()
+thrice
+
+thrice_webscrape_df %>% 
+  select(-X) %>%            # X is a redundant column that's not necessary
+  plyr::unrowname()         # get rid of rownames
+
+
+```
+
+
+Why not try it out for YOUR favorite band? 
+
+Of course, remember to check that the Wikipedia pages of each album to see that they are formatted in a uniform manner...
+
+Some other music-themed packages:
+
+SpotifyR by @RCharlie >>> you can grab other sorts of meta data from the vast of Spotify!
+
+
+
+

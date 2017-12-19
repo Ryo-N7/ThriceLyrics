@@ -213,6 +213,19 @@ tidy_lyrics %>%
 # instead of reshape2::acast()   use a spread/gather??
 # comparisond.cloud() takes only matrix as input!
 
+# 12/3/2017: USING SPREAD tidyverse ftw
+
+tidy_lyrics %>% 
+  filter(sentiment != "neutral") %>% 
+  count(word, sentiment, sort = TRUE) %>% 
+  spread(sentiment, n, fill = 0L) %>% 
+  as.data.frame() %>% 
+  remove_rownames() %>% 
+  column_to_rownames("word") %>% 
+  comparison.cloud(colors = c("black", "darkgreen"), title.size = 1.5)
+
+
+
 
 # with nrc >>>>  Distribution of emotion words BOXPLOT: ####
 
