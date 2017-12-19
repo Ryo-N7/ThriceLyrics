@@ -382,3 +382,148 @@ links <- sapply(rows, function(x) {
 
 
 
+
+
+
+
+
+
+## 12/18/17:
+
+
+
+
+########  ALBUMS: 1-4       NOT WORK     2, 3
+
+thrice_metadata <- map_df(al_link, function(i) {
+  
+  page <- read_html(i) 
+  
+  meta_table <- page %>% 
+    html_nodes(".tracklist") %>% 
+    .[[1]] %>% 
+    html_table() 
+  
+}) 
+
+
+#######   ALBUMS: 1, 4-8
+
+
+thrice_metadata <- map_df(album_links_again, function(i) {
+  
+  page <- read_html(i) 
+  
+  meta_table <- page %>% 
+    html_nodes(".tracklist") %>% 
+    .[[1]] %>% 
+    html_table() %>% 
+    as.data.frame()
+  
+  meta_table <- meta_table %>% 
+    mutate(album = i)
+  
+}) 
+
+
+
+## first album only:
+ex_1 <- album_links[1] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table() 
+
+str(ex_1)
+glimpse(ex_1)
+
+ex_1 %>% mutate(son_len = ms(Length))
+
+ex_1 %>% mutate(Num = str_replace(`No.`, "\\.", "") %>% as.numeric())
+
+
+album_links[2] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table() %>% mutate(son_len = ms(Length))
+
+# 12/18/17: album 2 and album 3, the `No.` appear as chr rather than dbl. with track num appearing as 1.   2.   3. rather than 1    2   3
+# also NOT grabbing 2nd table for Alchemy Index >>> Vol. II and Vol. IV
+
+album_links[5] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table()  # grab BOTH .[[1]] and .[[2]] for Alchemy Index albums
+
+album_links[6] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table()  # grab BOTH .[[1]] and .[[2]] for Alchemy Index albums
+
+alc <- album_links[6] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table() %>% as.data.frame()
+
+alc %>% cbind()
+
+
+album_links[3] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table()
+
+album_links[1] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>%
+  .[[1]] %>% 
+  html_table()
+
+list_al <- album_links[1] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>%
+  html_table()
+
+list_al %>% as.data.frame()
+
+album_links[7] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table()
+
+album_links[9] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  .[[1]] %>% 
+  html_table() %>% glimpse()
+mutate(song_num = as.numeric(`No.`),
+       title = `Title` %>% stringr::str_replace_all('"', ""),
+       song_length = lubridate::ms(Length)) %>% glimpse()
+
+# 9 doesnt exist as it appears as a LIST in wikipedia.... RRRRRRRRRRRRRR >>> 12/18/17 created by self
+
+
+album_links[9] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist") %>% 
+  html_table() %>% glimpse()
+mutate(song_num = as.numeric(`No.`),
+       title = `Title` %>% stringr::str_replace_all('"', ""),
+       song_length = lubridate::ms(Length)) %>% glimpse()
+
+album_links[1:2]
+album_links
+
+album_links_trial <- album_links[1:3]
+
+album_links_again <- album_links[c(1,4:8)]
+album_links_again
+
+al_link <- album_links[1:4]
+al_link
+
+
+
