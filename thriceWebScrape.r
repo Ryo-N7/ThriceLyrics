@@ -527,3 +527,32 @@ al_link
 
 
 
+
+
+
+
+# alchemy index cleaning --------------------------------------------------
+
+
+
+alc_2 <- thrice_alchemy_metadata %>% 
+  select(No. = No..1, Title = Title.1, Length = Length.1, album)
+
+alc <- alc_2 %>% 
+  plyr::rbind.fill(thrice_alchemy_metadata) %>% 
+  select(No., Title, Length, album)
+
+glimpse(alc)
+
+alc %>% 
+  transmute(album = album %>% 
+              str_replace("https://en.wikipedia.org/wiki/", "") %>% 
+              str_replace_all("_", " ") %>% 
+              str_replace("(Thrice album)", "") %>%
+              str_replace("album", "") %>% 
+              str_replace("\\(\\)", "") %>% 
+              trimws(),
+            Num = `No.`,
+            title = `Title` %>% stringr::str_replace_all('"', ""),
+            song_length = lubridate::ms(Length))
+

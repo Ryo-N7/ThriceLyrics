@@ -98,7 +98,7 @@ The title of each song is the 2nd element (`.[[2]]`) in the `html_node "b"` whil
 
 ```{r map_df lyrics}
 
-thrice <- map_df(url_link, function(i) {
+thrice_lyrics <- map_df(url_link, function(i) {
   
   pg <- read_html(i) 
   
@@ -111,7 +111,8 @@ thrice <- map_df(url_link, function(i) {
     lyrics = pg %>% 
       html_nodes("div.col-xs-12:nth-child(2) > div:nth-child(8)") %>% 
       html_text()
-  )
+  ) %>% 
+    Sys.sleep(sample(seq(0, 2, 0.5), 1))
   
 })
 ```
@@ -121,13 +122,14 @@ If you are doing this for a different band, just double-check to make sure the C
 
 Remember to save your data frame so you don't have to web scrape each time you come back:
 
-```{r}
+```{r save lyrics}
 
-write.csv(thrice, "~/R_materials/ThriceLyrics/thrice_webscrape.csv")
+write.csv(thrice_lyrics, "~/R_materials/ThriceLyrics/thrice_webscrape.csv")
 
-thrice <- read.csv("~/R_materials/ThriceLyrics/thrice_webscrape.csv", stringsAsFactors = FALSE)
+thrice_lyrics <- read.csv("~/R_materials/ThriceLyrics/thrice_webscrape.csv", 
+                             stringsAsFactors = FALSE)
 
-glimpse(thrice)
+glimpse(thrice_lyrics)
 
 ```
 
@@ -138,55 +140,58 @@ Our scraped dataframe has a lot of artifacts in the strings that we need to clea
 
 ```{r clean strings}
 
-thrice <- thrice %>% 
+thrice_lyrics <- thrice_lyrics %>% 
   mutate(title = str_replace_all(title, pattern = "\"", "")) %>% 
   mutate(lyrics = str_replace_all(lyrics, pattern = "\r", ""),
          lyrics = str_replace_all(lyrics, pattern = "\n", " "),
-         lyrics = trimws(lyrics, "both"))
+         lyrics = trimws(lyrics, "both")) %>% 
+  select(-X)
 
-glimpse(thrice)
+glimpse(thrice_lyrics)
 
 ```
 
 Our lyrics data set is ready so now we go on to scraping the meta data, this incldues information such as song length, song number, etc. 
 
-## Wikipedia meta data 
+## Wikipedia metadata 
 
 For the purposes of this article we are just going for really basic meta data so we are going to look at Wikipedia for song length and song number.
 
-Trying out different CSS Selectors we can grab different parts of the album html node on Thrice's Wikipedia page:
+Trying out different CSS Selectors and different `html_*()` functions we can grab different parts of the album html node on Thrice's Wikipedia page:
 
 ```{r}
 url <- "https://en.wikipedia.org/wiki/Thrice"
 
-# album titles
+# attribute (title): album titles
 url %>% 
   read_html() %>% 
   html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
   html_attr("title")
 
-# album titles (text) with year
+```
+
+```{r}
+# text: album titles with year
 url %>% 
   read_html() %>% 
   html_nodes(".mw-parser-output > ul:nth-child(68) > li") %>% 
   html_text("#text")
+```
 
-# href: grab the corresponding html link to each of the albums
+```{r}
+# attribute (href): grab the corresponding html link to each of the albums
 url %>% 
   read_html() %>% 
   html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
   html_attr("href")
-
 ```
 
-What we need is, just like for the lyrics data, the URL link to each of the albums and so we again specify "href" in `html_attr()`.
+What we need is, just like for the lyrics data, the URL link to each of the albums and so we specify "href" in `html_attr()`.
 
 With this knowledge in hand, let's create the list for the links to each album:
 
-```{r}
+```{r url links for metadata}
 url <- "https://en.wikipedia.org/wiki/Thrice"
-
-
 head_url <- "https://en.wikipedia.org"
 
 # href
@@ -200,43 +205,26 @@ album_links <- paste0(head_url, album_url)
 
 ```
 
-
-Let's see what the tracklist looks like for one of the albums (which, in the album_links list, is the first element)
+The tracklist for each album is stored in the html node ".tracklist" (in terms of its CSS Selector). Let's see what the tracklist looks like for the first Thrice album (which, in the album_links list, is the first element):
 
 ```{r}
 
-album_links[1] %>% read_html() %>% html_nodes(".tracklist")
+album_links[1] %>% 
+  read_html() %>% 
+  html_nodes(".tracklist")
 
 ```
 
-Good, we can see that we're grabbing the right info.
+We get a `table` of class = "tracklist. Good, we can see that we're grabbing the right info.
+
+Originally, code to extract the metadata table for the 2nd and 3rd element (corresponding to "The Illusion of Safety" and "The Artist in the Ambulance" albums respectively) in our album list didn't work as the corresponding Wikipedia articles stored the metadata as lists rather than tables. This also applied for Thrice's latest album (To Be Everywhere Is To Be Nowhere)[] in a slightly different way, in the end I had to go and edit all the Wikipedia data tables myself so that they were consistent and had all the information a Wikipedia "tracklist" table should have.
+
 
 Now to put it all together into one data frame, once again by using `map_df()`: 
 
-# ATTEMPT 2: get entire table, then split up into columns in tibble ####
-```{r}
-
-url <- "https://en.wikipedia.org/wiki/Thrice"
-head_url <- "https://en.wikipedia.org"
-
-# href
-album_url <- url %>% 
-  read_html() %>% 
-  html_nodes(".mw-parser-output > ul:nth-child(68) > li > i > a") %>% 
-  html_attr("href")
-
-
-album_links <- paste0(head_url, album_url)
-
-```
-
-Originally, code to extract the meta data table for the 2nd and 3rd element (corresponding to "The Illusion of Safety" and "The Artist in the Ambulance" albums respectively) in our album list didn't work as the corresponding Wikipedia articles stored the meta data as lists rather than tables. But around a week or so later they got turned into a table format... so whoever edited it, thank you! 
-
-However, for Thrice's latest album (To Be Everywhere Is To Be Nowhere)[], I had to go and edit the meta data part myself!
-
-The final data frame code:
-
 We are just going to have to deal with The Alchemy Index albums separately...
+
+One very important rule for web-scraping, especially for multiple page queries, is to include `Sys.sleep()` function so that you don't bombard the website of interest with a barrage of queries all at once!
 
 ```{r}
 album_alchemy_links <- album_links[5:6]
@@ -251,13 +239,11 @@ thrice_metadata <- map_df(album_links, function(i) {
       html_nodes(".tracklist") %>% 
       .[[1]] %>% 
       html_table() %>% 
-      as.data.frame()
+      as.data.frame() %>% 
+      Sys.sleep(sample(seq(0, 2, 0.5), 1))
   
   meta_table <- meta_table %>% 
-    mutate(album = i,
-           Num = str_replace(`No.`, "\\.", "") %>% as.numeric(),
-           title = `Title` %>% stringr::str_replace_all('"', ""),
-           song_length = lubridate::ms(Length))
+    mutate(album = i)
   
 }) 
 
@@ -270,12 +256,11 @@ thrice_alchemy_metadata <- map_df(album_alchemy_links, function(i) {
   meta_table <- page %>% 
       html_nodes(".tracklist") %>% 
       html_table() %>% 
-      as.data.frame()
+      as.data.frame() %>% 
+      Sys.sleep(sample(seq(0, 2, 0.5), 1))
   
   meta_table <- meta_table %>% 
-    mutate(album = i,
-           Num = `No.`,
-           title = `Title` %>% stringr::str_replace_all('"', ""))
+    mutate(album = i)
   
 }) 
 
@@ -283,7 +268,7 @@ thrice_alchemy_metadata <- map_df(album_alchemy_links, function(i) {
 
 As before let's save our progress:
 
-```{r}
+```{r save metadata}
 
 write.csv(thrice_metadata, "~/R_materials/ThriceLyrics/thrice_meta_most.csv")
 
@@ -301,18 +286,40 @@ thrice_alchemy_metadata <- read.csv("~/R_materials/ThriceLyrics/thrice_meta_alch
 Now let's take a look at our results!
 
 ```{r}
-glimpse()
+glimpse(thrice_metadata)
 
-glimpse()
+glimpse(thrice_alchemy_metadata)
+
+glimpse(thrice_lyrics)
 
 ```
 
 Clearly a few things need to be done:
 
-```{r}
+First let's clean The Alchemy Index metadata so we can properly combine it with the main metadata dataframe:
 
-thrice_metadata %>% 
-    mutate(album = album %>% 
+For the peculiar case with The Alchemy Index metadata:
+
+```{r alchemy clean}
+
+alc_2 <- thrice_alchemy_metadata %>% 
+  select(No. = No..1, Title = Title.1, Length = Length.1, album)
+
+alc <- alc_2 %>% 
+  plyr::rbind.fill(thrice_alchemy_metadata) %>% 
+  select(No., Title, Length, album)
+
+glimpse(alc)
+
+```
+
+Combine it with the main metadata and then clean it all in one go...
+
+```{r bind alchemy combine metadata}
+
+thrice_meta_complete <- alc %>% 
+  plyr::rbind.fill(thrice_metadata) %>% 
+    transmute(album = album %>% 
              str_replace("https://en.wikipedia.org/wiki/", "") %>% 
              str_replace_all("_", " ") %>% 
              str_replace("(Thrice album)", "") %>%
@@ -324,36 +331,40 @@ thrice_metadata %>%
            song_length = lubridate::ms(Length)) %>% 
   select(track_num, title, album, song_length)
 
-
 ```
 
 
 
 Finally we can combine the meta data and the lyrics data by a common column, the song titles!
 
-```{r}
+```{r complete!}
 
-thrice_webscrape_df <- thrice %>% left_join(thrice_metadata)   # should join on "title" column
+glimpse(thrice_meta_complete)
+
+thrice_meta_complete %>% mutate(title = tolower(title)) %>% 
+  left_join(thrice_lyrics %>% mutate(title = tolower(title))) %>% glimpse()
+
+thrice_meta_complete %>% mutate(title = tolower(title)) %>% 
+  left_join(thrice_lyrics %>% mutate(title = tolower(title))) %>% 
+  filter(is.na(lyrics))
+
+thrice_complete_webscrape_df <- thrice_meta_complete %>% left_join(thrice_lyrics)   
+# should join on "title" column
 
 glimpse(thrice_webscrape_df)
 
 ```
 
-We have lyrics data for 122 songs while the Wikipedia meta data picked up 133 songs... Among other things there's still a few things we need to fix:
 
-```{r}
+# use tolower to make song titles as similar as possible before join
+# some may need more direct adjustment ...
+# some songs in `thrice` on AZ lyrics page are from EPs or bonus tracks...
 
-thrice %>% plyr::unrowname()
-thrice %>% glimpse()
-thrice
+We have lyrics data for 122 songs while the Wikipedia meta data picked up 133 songs... 
 
-thrice_webscrape_df %>% 
-  select(-X) %>%            # X is a redundant column that's not necessary
-  plyr::unrowname()         # get rid of rownames
+Some songs from AZ lyrics are from LPs and bonus tracks that I didn't web scrape for while others 
 
-
-```
-
+It did get a bit messy, especially cleaning the scraped data but it did most of the work and what's left is to tweak a few things and add in data for 
 
 Why not try it out for YOUR favorite band? 
 
@@ -361,8 +372,7 @@ Of course, remember to check that the Wikipedia pages of each album to see that 
 
 Some other music-themed packages:
 
-SpotifyR by @RCharlie >>> you can grab other sorts of meta data from the vast of Spotify!
-
-
-
+* [SpotifyR]() by Charlie Thompson [@RCharlie]() >>> you can grab other sorts of meta data from the vast of Spotify!
+* [billboard]() by M.F. Krogsholm contains datasets for the Billboard Hot 100 list from 1960 to 2016, included in this are the ranks for the given year, webscraped lyrics, and some extra spotify features such as "energy", "key", and "danceability"!
+* [tuneR]() by Uew Ligges allows you to extract MFCC, wave files, and basically allows you to analyze music and speech through audio decoding!
 
