@@ -58,7 +58,7 @@ url %>%
 
 ```
 
-How about for a different band? All you have to do is change the target url to the band of your preference:
+How about for a different band? All you have to do is change the target url to the band/musician of your preference:
 
 ```{r}
 url2 <- "https://www.azlyrics.com/s/sum41.html"
@@ -90,11 +90,16 @@ url_link <- url %>%
   mutate(value = str_replace(value, "..", "")) %>% 
   mutate(value = paste0("https://azlyrics.com", value)) %>% as.matrix()
 
+head(url_link, 6)
+class(url_link)
+
+save(url_link, file = "url_link.Rdata")
+
 ```
 
 Now that we have the links for each song, we can use `map_df()` to create a data frame with the lyrics for each song!
 
-The title of each song is the 2nd element (`.[[2]]`) in the `html_node "b"` while the data for the lyrics are contained in the node `"div.col-xs-12:nth-child(2) > div:nth-child(8)"`. Finally, pass `html_text()` to scrape it as text.
+In the code below, the title of each song is the 2nd element (`.[[2]]`) in the `html_node "b"` while the data for the lyrics are contained in the node `"div.col-xs-12:nth-child(2) > div:nth-child(8)"`. Finally, pass `html_text()` to scrape it as text. One very important rule for web-scraping, especially for multiple page queries, is to include `Sys.sleep()` function so that you don't bombard the website of interest with a barrage of queries all at once! You can specify how long to pause in the function, in this case the value is a random sample between 0 to 2 seconds in increments of 0.5 seconds. You can specify longer or shorter durations by considering how many queries you are sending, that's up to you. 
 
 ```{r map_df lyrics}
 
@@ -110,9 +115,10 @@ thrice_lyrics <- map_df(url_link, function(i) {
     
     lyrics = pg %>% 
       html_nodes("div.col-xs-12:nth-child(2) > div:nth-child(8)") %>% 
-      html_text()
-  ) %>% 
-    Sys.sleep(sample(seq(0, 2, 0.5), 1))
+      html_text(),
+    
+    Sys.sleep(sample(seq(0, 2, 0.5), 1)) 
+  )
   
 })
 ```
@@ -120,13 +126,13 @@ thrice_lyrics <- map_df(url_link, function(i) {
 
 If you are doing this for a different band, just double-check to make sure the CSS selector for the nodes are the right ones! 
 
-Remember to save your data frame so you don't have to web scrape each time you come back:
+Remember to save your data frame so you don't have to web scrape each time you come back to your project:
 
 ```{r save lyrics}
 
-write.csv(thrice_lyrics, "~/R_materials/ThriceLyrics/thrice_webscrape.csv")
+write.csv(thrice_lyrics, "~/R_materials/ThriceLyrics/thrice_lyrics.csv")
 
-thrice_lyrics <- read.csv("~/R_materials/ThriceLyrics/thrice_webscrape.csv", 
+thrice_lyrics <- read.csv("~/R_materials/ThriceLyrics/thrice_lyrics.csv", 
                              stringsAsFactors = FALSE)
 
 glimpse(thrice_lyrics)
@@ -217,14 +223,9 @@ album_links[1] %>%
 
 We get a `table` of class = "tracklist. Good, we can see that we're grabbing the right info.
 
-Originally, code to extract the metadata table for the 2nd and 3rd element (corresponding to "The Illusion of Safety" and "The Artist in the Ambulance" albums respectively) in our album list didn't work as the corresponding Wikipedia articles stored the metadata as lists rather than tables. This also applied for Thrice's latest album (To Be Everywhere Is To Be Nowhere)[] in a slightly different way, in the end I had to go and edit all the Wikipedia data tables myself so that they were consistent and had all the information a Wikipedia "tracklist" table should have.
+Originally, code to extract the metadata table for the 2nd and 3rd element (corresponding to "The Illusion of Safety" and "The Artist in the Ambulance" albums respectively) in our album list didn't work as the corresponding Wikipedia articles stored the metadata as lists rather than tables. This also applied for Thrice's latest album (To Be Everywhere Is To Be Nowhere)[] in a slightly different way, in the end I had to go and edit all the Wikipedia data tables myself so that they were consistent and had all the information a Wikipedia "tracklist" table should have. Also, as the two parts of each The Alchemy Index album is stored in 2 different tables, I had to do that in a separate function.
 
-
-Now to put it all together into one data frame, once again by using `map_df()`: 
-
-We are just going to have to deal with The Alchemy Index albums separately...
-
-One very important rule for web-scraping, especially for multiple page queries, is to include `Sys.sleep()` function so that you don't bombard the website of interest with a barrage of queries all at once!
+With all that said, time to put it all together into one data frame, once again by using `map_df()`: 
 
 ```{r}
 album_alchemy_links <- album_links[5:6]
@@ -239,15 +240,16 @@ thrice_metadata <- map_df(album_links, function(i) {
       html_nodes(".tracklist") %>% 
       .[[1]] %>% 
       html_table() %>% 
-      as.data.frame() %>% 
-      Sys.sleep(sample(seq(0, 2, 0.5), 1))
+      as.data.frame() 
+  
+  Sys.sleep(sample(seq(0, 2, 0.5), 1))
   
   meta_table <- meta_table %>% 
     mutate(album = i)
   
 }) 
 
-# just for alchemy index
+# alchemy index
 
 thrice_alchemy_metadata <- map_df(album_alchemy_links, function(i) {
   
@@ -256,8 +258,9 @@ thrice_alchemy_metadata <- map_df(album_alchemy_links, function(i) {
   meta_table <- page %>% 
       html_nodes(".tracklist") %>% 
       html_table() %>% 
-      as.data.frame() %>% 
-      Sys.sleep(sample(seq(0, 2, 0.5), 1))
+      as.data.frame() 
+  
+  Sys.sleep(sample(seq(0, 2, 0.5), 1))
   
   meta_table <- meta_table %>% 
     mutate(album = i)
@@ -332,8 +335,6 @@ thrice_meta_complete <- alc %>%
   select(track_num, title, album, song_length)
 
 ```
-
-
 
 Finally we can combine the meta data and the lyrics data by a common column, the song titles!
 
