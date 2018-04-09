@@ -280,6 +280,16 @@ df %>%
   xlab('Minutes') +
   scale_x_continuous(breaks = pretty_breaks(7))
 
+
+library(ggridges)
+
+df %>% 
+  ggplot(aes(x = as.numeric(lengthS)/60, y = album)) +
+  geom_density_ridges() +
+  xlab('Minutes') +
+  scale_x_continuous(breaks = pretty_breaks(7))
+
+
 ```
 
 You can see that the the **ridge lines** are drawn from the **densities** of the data along time (x-axis). The more numerous the amount of songs of any particular duration of time, the higher the ridges appear, with the overall effect being that of a mountain range that can be compared across different groups, in this case Thrice's albums.  
@@ -300,6 +310,19 @@ joyplot <- df %>%
   theme(legend.position = "none")
 
 joyplot
+
+df %>% 
+  mutate(group = reorder(album, desc(lengthS))) %>%   # reorder based on lengthS (descending)
+  ggplot(aes(x = as.numeric(lengthS)/60, y = group, fill = group)) +   
+  geom_density_ridges(scale = 2) +                       # scale to set amount of overlap between ridges
+  xlab('Minutes') +
+  scale_x_continuous(breaks = pretty_breaks(10)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  scale_fill_manual(values = rep(c("#006400", "#404040"), n_distinct(df$album))) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+
 
 ```
 
@@ -343,7 +366,7 @@ Or you could use the `gridExtra` package and the `grid.arrange()` function which
 joyplot2 <- df %>% 
   mutate(group = reorder(album, desc(lengthS))) %>%     
   ggplot(aes(x = as.numeric(lengthS)/60, y = group, fill = group)) +  
-  geom_joy(scale = 2) +
+  geom_density_ridges(scale = 2) +
   xlab('Minutes') +
   scale_x_continuous(breaks = pretty_breaks(10)) +
   scale_y_discrete(expand = c(0, 0)) +
