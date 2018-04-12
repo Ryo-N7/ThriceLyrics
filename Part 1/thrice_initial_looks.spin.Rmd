@@ -184,7 +184,8 @@ Leaving that aside for now (especially since we can still calculate the sums jus
 ```{r}
 # Plotting! ---------------------------------------------------------------
 
-df %>% ggplot(aes(x = as.numeric(lengthS))) + 
+df %>% 
+  ggplot(aes(x = as.numeric(lengthS))) + 
   geom_histogram(binwidth = 10, 
                  color = 'white',
                  fill = 'darkgreen') +
@@ -204,7 +205,8 @@ Let's try plotting in minutes as well by dividing the `lenghtS` (length in secon
 
 ```{r}
 
-df %>% ggplot(aes(x = as.numeric(lengthS)/60)) + 
+df %>% 
+  ggplot(aes(x = as.numeric(lengthS)/60)) + 
   geom_histogram(binwidth = 0.5, 
                  color = 'white',
                  fill = 'darkgreen') +
@@ -268,19 +270,12 @@ What we can do is try out a different plotting method altogether, so now let's i
 
 **Joy plots** engulfed the data science/visualization community during the past summer. First popularized in a post by Henrik Lindberg on ["peak times for sports and leisure"](https://www.reddit.com/r/dataisbeautiful/comments/6m0wo7/peak_time_for_sports_and_leisure_oc/), joy plots are useful for visualizing changes in distribution over time or space and was made to be an alternative to heat maps. Amidst much debate on the various advantages and disadvantages of this visualization method all across social media, Claus Wilke released the [ggjoy](https://cran.r-project.org/web/packages/ggjoy/vignettes/introduction.html) package that allows you to easily make joy plots on top of the existing `ggplot2` package.   
 
+**(April-2018: updated to use `ggridges` package)**
+
 I finally have a chance to put this to practice with my own data so let's try it out here! 
 
 ```{r}
 # Joy Plots ---------------------------------------------------------------
-library(ggjoy)
-
-df %>% 
-  ggplot(aes(x = as.numeric(lengthS)/60, y = album)) +
-  geom_joy() +
-  xlab('Minutes') +
-  scale_x_continuous(breaks = pretty_breaks(7))
-
-
 library(ggridges)
 
 df %>% 
@@ -301,19 +296,6 @@ Now let's add some color (dark green = `#006400`, dark grey = `#404040`) and tin
 joyplot <- df %>% 
   mutate(group = reorder(album, desc(lengthS))) %>%   # reorder based on lengthS (descending)
   ggplot(aes(x = as.numeric(lengthS)/60, y = group, fill = group)) +   
-  geom_joy(scale = 2) +                       # scale to set amount of overlap between ridges
-  xlab('Minutes') +
-  scale_x_continuous(breaks = pretty_breaks(10)) +
-  scale_y_discrete(expand = c(0, 0)) +
-  scale_fill_manual(values = rep(c("#006400", "#404040"), n_distinct(df$album))) +
-  theme_bw() +
-  theme(legend.position = "none")
-
-joyplot
-
-df %>% 
-  mutate(group = reorder(album, desc(lengthS))) %>%   # reorder based on lengthS (descending)
-  ggplot(aes(x = as.numeric(lengthS)/60, y = group, fill = group)) +   
   geom_density_ridges(scale = 2) +                       # scale to set amount of overlap between ridges
   xlab('Minutes') +
   scale_x_continuous(breaks = pretty_breaks(10)) +
@@ -322,7 +304,7 @@ df %>%
   theme_bw() +
   theme(legend.position = "none")
 
-
+joyplot
 
 ```
 
